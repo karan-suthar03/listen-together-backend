@@ -2,6 +2,7 @@ const ytdl = require('@distube/ytdl-core');
 const fs = require('fs');
 const path = require('path');
 const { EventEmitter } = require('events');
+const supabaseService = require('./supabaseService');
 
 class YouTubeService extends EventEmitter {
   constructor() {
@@ -46,12 +47,15 @@ class YouTubeService extends EventEmitter {
       throw new Error('Failed to get video information');
     }
   }
-
   async downloadVideo(videoId, url, roomCode, queueItemId) {
     const filename = `${videoId}.mp3`;
     const filePath = path.join(this.downloadsDir, filename);
-    if (fs.existsSync(filePath)) {
-      console.log(`File ${filename} already exists, skipping download`);
+    
+    // Check if file already exists in Supabase
+    const fileExistsInSupabase = await supabaseService.fileExists(filename);
+    if (fileExistsInSupabase) {
+      console.log(`File ${filename} already exists in Supabase, getting URL`);
+      const publicUrl = supabaseService.getPublicUrl(filename);
       
       this.emit('downloadProgress', {
         videoId,
@@ -65,21 +69,24 @@ class YouTubeService extends EventEmitter {
         videoId,
         roomCode,
         queueItemId,
-        filePath,
+        filePath: null, // No local path
         filename,
+        publicUrl, // Add Supabase public URL
         status: 'completed'
       });
-      return { filePath, filename };
+      return { filename, publicUrl };
     }
 
     if (this.downloadQueue.has(videoId)) {
       console.log(`Download for ${videoId} already in progress`);
       return this.downloadQueue.get(videoId);
-    }    const downloadPromise = new Promise((resolve, reject) => {
+    }
+
+    const downloadPromise = new Promise(async (resolve, reject) => {
       const startTime = Date.now();
       let totalSize = 0;
       let downloadedSize = 0;
-      let lastProgressEmit = 0; // Track when we last emitted progress
+      let lastProgressEmit = 0;
 
       try {
         const stream = ytdl(url, { 
@@ -109,14 +116,14 @@ class YouTubeService extends EventEmitter {
           const progress = totalSize > 0 ? Math.round((downloadedSize / totalSize) * 100) : 0;
           const now = Date.now();
           
-          // Emit progress every 2 seconds instead of every 5%
+          // Emit progress every 2 seconds
           if (now - lastProgressEmit >= 2000) {
             lastProgressEmit = now;
             this.emit('downloadProgress', {
               videoId,
               roomCode,
               queueItemId,
-              progress,
+              progress: Math.min(progress, 95), // Cap at 95% until upload is complete
               totalSize,
               downloadedSize,
               status: 'downloading'
@@ -143,33 +150,84 @@ class YouTubeService extends EventEmitter {
           reject(error);
         });
 
-        stream.pipe(writeStream);        writeStream.on('finish', () => {
+        stream.pipe(writeStream);
+
+        writeStream.on('finish', async () => {
           const elapsed = (Date.now() - startTime) / 1000;
-          console.log(`Downloaded ${filename} in ${elapsed} seconds`);
+          console.log(`Downloaded ${filename} in ${elapsed} seconds, now uploading to Supabase...`);
           
-          // Emit final progress update immediately before completion
-          this.emit('downloadProgress', {
-            videoId,
-            roomCode,
-            queueItemId,
-            progress: 100,
-            totalSize,
-            downloadedSize: totalSize,
-            status: 'completed'
-          });
-          
-          this.downloadQueue.delete(videoId);
-          this.emit('downloadComplete', {
-            videoId,
-            roomCode,
-            queueItemId,
-            filePath,
-            filename,
-            downloadTime: elapsed,
-            status: 'completed'
-          });
-          
-          resolve({ filePath, filename });
+          try {
+            // Emit progress update for upload phase
+            this.emit('downloadProgress', {
+              videoId,
+              roomCode,
+              queueItemId,
+              progress: 95,
+              totalSize,
+              downloadedSize: totalSize,
+              status: 'uploading'
+            });
+
+            // Upload to Supabase
+            const uploadResult = await supabaseService.uploadFile(filePath, filename, {
+              videoId,
+              roomCode,
+              queueItemId,
+              uploadedAt: new Date().toISOString()
+            });
+
+            if (uploadResult.success) {
+              console.log(`Successfully uploaded ${filename} to Supabase`);
+              
+              // Clean up local file
+              await supabaseService.cleanupLocalFile(filePath);
+              
+              // Emit final completion
+              this.emit('downloadProgress', {
+                videoId,
+                roomCode,
+                queueItemId,
+                progress: 100,
+                totalSize,
+                downloadedSize: totalSize,
+                status: 'completed'
+              });
+              
+              this.downloadQueue.delete(videoId);
+              this.emit('downloadComplete', {
+                videoId,
+                roomCode,
+                queueItemId,
+                filePath: null, // No local path since we cleaned it up
+                filename,
+                publicUrl: uploadResult.publicUrl,
+                downloadTime: elapsed,
+                status: 'completed'
+              });
+              
+              resolve({ filename, publicUrl: uploadResult.publicUrl });
+            } else {
+              throw new Error(`Upload failed: ${uploadResult.error}`);
+            }
+          } catch (uploadError) {
+            console.error('Upload to Supabase failed:', uploadError);
+            
+            // Clean up local file even if upload failed
+            if (fs.existsSync(filePath)) {
+              fs.unlinkSync(filePath);
+            }
+            
+            this.downloadQueue.delete(videoId);
+            this.emit('downloadError', {
+              videoId,
+              roomCode,
+              queueItemId,
+              error: `Upload failed: ${uploadError.message}`,
+              status: 'error'
+            });
+            
+            reject(uploadError);
+          }
         });
 
         writeStream.on('error', (error) => {
@@ -207,28 +265,31 @@ class YouTubeService extends EventEmitter {
     this.downloadQueue.set(videoId, downloadPromise);
     return downloadPromise;
   }
-
-  getDownloadStatus(videoId) {
+  async getDownloadStatus(videoId) {
     if (this.downloadQueue.has(videoId)) {
       return 'downloading';
     }
     
+    // Check if file exists in Supabase
     const filename = `${videoId}.mp3`;
-    const filePath = path.join(this.downloadsDir, filename);
+    const fileExistsInSupabase = await supabaseService.fileExists(filename);
     
-    if (fs.existsSync(filePath)) {
+    if (fileExistsInSupabase) {
       return 'completed';
     }
     
     return 'pending';
   }
 
-  getFilePath(videoId) {
+  async getFilePath(videoId) {
     const filename = `${videoId}.mp3`;
-    const filePath = path.join(this.downloadsDir, filename);
     
-    if (fs.existsSync(filePath)) {
-      return { filePath, filename };
+    // Check if file exists in Supabase and return public URL
+    const fileExistsInSupabase = await supabaseService.fileExists(filename);
+    
+    if (fileExistsInSupabase) {
+      const publicUrl = supabaseService.getPublicUrl(filename);
+      return { filename, publicUrl };
     }
     
     return null;

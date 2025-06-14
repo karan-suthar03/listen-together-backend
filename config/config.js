@@ -1,8 +1,22 @@
+// Load environment variables from .env file
+require('dotenv').config();
+
 const config = {
   server: {
     port: process.env.PORT || 3000,
     host: process.env.HOST || 'localhost'
-  },  cors: {
+  },  supabase: {
+    url: process.env.SUPABASE_URL,
+    // Server-side operations MUST use service role key for full permissions
+    // The service role key bypasses RLS and has admin privileges
+    key: process.env.SUPABASE_SERVICE_ROLE_KEY, // Only use service role for server
+    serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+    // Anon key kept for documentation/reference only - not used server-side
+    anonKey: process.env.SUPABASE_ANON_KEY, // For client-side use only
+    bucket: process.env.SUPABASE_BUCKET_NAME || 'music-files',
+    publicUrl: process.env.SUPABASE_PUBLIC_URL || process.env.SUPABASE_URL
+  },
+  cors: {
     allowedOrigins: process.env.ALLOWED_ORIGINS ? 
       process.env.ALLOWED_ORIGINS.split(',') : 
       ['http://localhost:4200', 'http://localhost:4201', 'https://subscriptions-distances-ie-infectious.trycloudflare.com'],

@@ -1,4 +1,5 @@
 const roomService = require('../services/roomService');
+const roomCleanupService = require('../services/roomCleanupService');
 const { createSuccessResponse } = require('../middleware/response');
 
 class RoomController {
@@ -7,14 +8,16 @@ class RoomController {
     const result = await roomService.createRoom(name);
     
     return createSuccessResponse(result, 'Room created successfully');
-  }
-  async joinRoom(req, res) {
+  }  async joinRoom(req, res) {
     const { code, name } = req.body;
     const result = await roomService.joinRoom(code, name);
     
     if (!result) {
       throw new Error('Room not found');
     }
+    
+    // Handle room membership change for cleanup
+    roomCleanupService.handleRoomMembershipChange(code);
     
     return createSuccessResponse(result, 'Joined room successfully');
   }
@@ -27,8 +30,7 @@ class RoomController {
     }
     
     return createSuccessResponse(room, 'Room details retrieved successfully');
-  }
-  async deleteRoom(req, res) {
+  }  async deleteRoom(req, res) {
     const { roomCode } = req.params;
     const result = await roomService.deleteRoom(roomCode);
     
@@ -36,7 +38,20 @@ class RoomController {
       throw new Error('Room not found');
     }
     
+    // Cancel any pending cleanup timers for the deleted room
+    roomCleanupService.cancelEmptyRoomTimer(roomCode);
+    
     return createSuccessResponse({ roomCode }, 'Room deleted successfully');
+  }
+
+  async getCleanupStatus(req, res) {
+    const status = roomCleanupService.getCleanupStatus();
+    const roomStats = roomService.getRoomStats();
+    
+    return createSuccessResponse({
+      cleanup: status,
+      rooms: roomStats
+    }, 'Cleanup status retrieved successfully');
   }
 }
 

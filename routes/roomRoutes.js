@@ -40,5 +40,13 @@ router.delete('/:roomCode',
   })
 );
 
+// Add cleanup status endpoint for monitoring
+router.get('/system/cleanup-status',
+  asyncHandler(async (req, res) => {
+    const result = await roomController.getCleanupStatus(req, res);
+    sendResponse(res, 200, result);
+  })
+);
+
 
 module.exports = router;

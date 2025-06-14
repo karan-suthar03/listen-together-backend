@@ -114,7 +114,8 @@ class QueueController {
     }, 'Song moved in queue successfully');
   }
 
-  async _processYouTubeUrl(roomCode, youtubeUrl, addedBy) {    const videoInfo = await youtubeService.getVideoInfo(youtubeUrl);
+  async _processYouTubeUrl(roomCode, youtubeUrl, addedBy) {    
+    const videoInfo = await youtubeService.getVideoInfo(youtubeUrl);
     if (!videoInfo) {
       throw new Error('Failed to get video information');
     }    // Check if this video is already in the queue
@@ -124,7 +125,7 @@ class QueueController {
     if (room?.playback?.queue) {
       console.log(`🔍 Current queue video IDs:`, room.playback.queue.map(item => ({ title: item.title, videoId: item.videoId })));
     }
-      const existingTrack = room?.playback?.queue?.find(item => {
+    const existingTrack = room?.playback?.queue?.find(item => {
       console.log(`🔍 Comparing YouTube: "${item.videoId}" === "${videoInfo.videoId}"`);
       return item.videoId === videoInfo.videoId;
     });

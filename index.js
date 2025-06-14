@@ -6,6 +6,8 @@ const registerRoomSocket = require('./sockets/roomSocket');
 const registerMusicSocket = require('./sockets/musicSocket');
 const youtubeService = require('./services/youtubeService');
 const roomService = require('./services/roomService');
+const roomCleanupService = require('./services/roomCleanupService');
+const supabaseService = require('./services/supabaseService');
 
 const port = config.server.port;
 const io = new Server({
@@ -28,6 +30,49 @@ io.attach(server);
 registerRoomSocket(io);
 registerMusicSocket(io);
 
+// Set up room cleanup callback to notify clients when rooms are auto-deleted
+roomCleanupService.setRoomDeletionCallback((roomCode, deletedRoom) => {
+  console.log(`🗑️ Notifying clients about auto-deleted room: ${roomCode}`);
+  
+  // Emit to all clients in the room about the deletion
+  io.to(roomCode).emit('room-deleted', {
+    roomCode,
+    reason: 'inactivity',
+    message: 'Room was automatically deleted due to inactivity'
+  });
+  
+  // Force disconnect all sockets from this room
+  const sockets = io.sockets.adapter.rooms.get(roomCode);
+  if (sockets) {
+    sockets.forEach(socketId => {
+      const socket = io.sockets.sockets.get(socketId);
+      if (socket) {
+        socket.leave(roomCode);
+        socket.emit('force-disconnect', {
+          reason: 'room-deleted',
+          message: 'You have been disconnected because the room was deleted due to inactivity'
+        });
+      }
+    });
+  }
+});
+
+// Periodic cleanup check (every 5 minutes) to ensure consistency
+setInterval(() => {
+  const rooms = roomService.rooms;
+  const cleanupStatus = roomCleanupService.getCleanupStatus();
+  
+  console.log(`🔄 Periodic cleanup check - ${rooms.size} rooms, ${cleanupStatus.emptyRoomsBeingTracked} being tracked for cleanup`);
+  
+  // Check for any rooms that might have been missed
+  rooms.forEach((room, roomCode) => {
+    if (room.members.length === 0) {
+      // Ensure empty rooms are being tracked
+      roomCleanupService.handleRoomMembershipChange(roomCode);
+    }
+  });
+}, 5 * 60 * 1000); // Every 5 minutes
+
 youtubeService.on('downloadProgress', (data) => {
   const { roomCode, queueItemId, progress, status } = data;
   
@@ -45,10 +90,11 @@ youtubeService.on('downloadProgress', (data) => {
 youtubeService.on('downloadComplete', (data) => {
   console.log('Download complete event received:', JSON.stringify(data, null, 2));
   
-  const { roomCode, queueItemId, filename } = data;
-  const mp3Url = `/api/music/stream/${filename}`;
+  const { roomCode, queueItemId, filename, publicUrl } = data;
+  // Use publicUrl from Supabase instead of local streaming URL
+  const mp3Url = publicUrl || `/api/music/stream/${filename}`;
   
-  console.log('Processing download complete:', { roomCode, queueItemId, filename, mp3Url });
+  console.log('Processing download complete:', { roomCode, queueItemId, filename, mp3Url, publicUrl });
   
   const result = roomService.updateQueueItemStatus(roomCode, queueItemId, 'completed', 100, mp3Url);  
   console.log('Queue item updated:', result ? 'success' : 'failed');
@@ -67,6 +113,7 @@ youtubeService.on('downloadComplete', (data) => {
   io.to(roomCode).emit('queueItemComplete', {
     queueItemId,
     mp3Url,
+    publicUrl,
     status: 'completed'
   });
   
@@ -92,6 +139,40 @@ youtubeService.on('downloadError', (data) => {
   });
 });
 
-server.listen(port, () => {
+server.listen(port, async () => {
   console.log(`Server listening at http://localhost:${port}`);
+  console.log(`🗑️ Room cleanup service active - empty rooms will be deleted after ${roomCleanupService.EMPTY_ROOM_TIMEOUT / 1000 / 60} minutes of inactivity`);
+  
+  // Initialize Supabase bucket
+  try {
+    console.log('Initializing Supabase storage...');
+    const bucketInitialized = await supabaseService.initializeBucket();
+    if (bucketInitialized) {
+      console.log('✅ Supabase storage initialized successfully');
+    } else {
+      console.warn('⚠️ Failed to initialize Supabase storage - check your configuration');
+    }
+  } catch (error) {
+    console.error('❌ Error initializing Supabase:', error.message);
+    console.warn('Server will continue running but file uploads may fail');
+  }
+});
+
+// Graceful shutdown handling
+process.on('SIGTERM', () => {
+  console.log('SIGTERM received, shutting down gracefully...');
+  roomCleanupService.clearAllTimers();
+  server.close(() => {
+    console.log('Server closed');
+    process.exit(0);
+  });
+});
+
+process.on('SIGINT', () => {
+  console.log('SIGINT received, shutting down gracefully...');
+  roomCleanupService.clearAllTimers();
+  server.close(() => {
+    console.log('Server closed');
+    process.exit(0);
+  });
 });

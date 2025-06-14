@@ -2,6 +2,17 @@
 
 A real-time music streaming server that allows multiple users to listen to music together in synchronized rooms with YouTube and Spotify integration.
 
+## 🗂️ Storage Integration
+
+### **Supabase Storage**
+Files are now stored in Supabase Storage instead of local disk:
+- ✅ **Scalable cloud storage** with CDN delivery
+- ✅ **Direct file access** via public URLs
+- ✅ **Automatic backups** and redundancy
+- ✅ **Cost-effective** pay-as-you-use pricing
+
+See [SUPABASE_SETUP.md](./SUPABASE_SETUP.md) for detailed setup instructions.
+
 ## 🏗️ Architecture Overview
 
 The project has been completely refactored following clean architecture principles:
