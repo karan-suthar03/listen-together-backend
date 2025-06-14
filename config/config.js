@@ -2,11 +2,10 @@ const config = {
   server: {
     port: process.env.PORT || 3000,
     host: process.env.HOST || 'localhost'
-  },
-  cors: {
+  },  cors: {
     allowedOrigins: process.env.ALLOWED_ORIGINS ? 
       process.env.ALLOWED_ORIGINS.split(',') : 
-      ['http://localhost:4200', 'http://localhost:4201'],
+      ['http://localhost:4200', 'http://localhost:4201', 'https://subscriptions-distances-ie-infectious.trycloudflare.com'],
     credentials: true
   },
   room: {

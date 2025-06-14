@@ -5,11 +5,18 @@ const config = require('./config/config');
 
 function createApp(io) {
   const app = express();
-
   app.use(cors({
-    origin: config.cors.allowedOrigins,
-    credentials: config.cors.credentials
+    origin: true, // Allow all origins for ngrok testing
+    credentials: config.cors.credentials,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'ngrok-skip-browser-warning']
   }));
+
+  // Add middleware to handle ngrok browser warning
+  app.use((req, res, next) => {
+    res.header('ngrok-skip-browser-warning', 'true');
+    next();
+  });
 
   app.use(express.json());
 
@@ -57,10 +64,12 @@ function createApp(io) {
   app.get('/api/hello', (req, res) => {
     res.json({ message: 'Hello from the backend!' });
   });
-
   app.use('/public', express.static(path.join(__dirname, 'public')));
   
   app.use('/downloads', express.static(path.join(__dirname, 'downloads')));
+
+  // Serve Angular static files
+  app.use(express.static(path.join(__dirname, 'public')));
 
   const roomRoutes = require('./routes/roomRoutes');
   const musicRoutes = require('./routes/musicRoutes');
@@ -72,20 +81,24 @@ function createApp(io) {
   app.use('/api/participants', participantRoutes);
   app.use('/api/queue', queueRoutes);
 
+  // Serve Angular app for all non-API routes
+  app.get('*', (req, res) => {
+    if (req.url.startsWith('/api/')) {
+      res.status(404).json({
+        success: false,
+        error: 'API endpoint not found',
+        statusCode: 404,
+        path: req.originalUrl
+      });
+    } else {
+      res.sendFile(path.join(__dirname, 'public', 'index.html'));
+    }
+  });
   app.use((error, req, res, next) => {
     console.error('Unhandled error:', error);
     
     const { handleError } = require('./middleware/response');
     handleError(res, error, 'Global error handler');
-  });
-
-  app.use('*', (req, res) => {
-    res.status(404).json({
-      success: false,
-      error: 'Endpoint not found',
-      statusCode: 404,
-      path: req.originalUrl
-    });
   });
 
   return app;

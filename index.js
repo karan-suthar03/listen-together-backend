@@ -11,14 +11,12 @@ const port = config.server.port;
 const io = new Server({
   cors: {
     origin: (origin, callback) => {
-      if (!origin || config.cors.allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error('Not allowed by CORS'));
-      }
+      // Allow all origins for ngrok testing
+      callback(null, true);
     },
-    methods: ['GET', 'POST'],
-    credentials: config.cors.credentials
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    credentials: config.cors.credentials,
+    allowedHeaders: ['Content-Type', 'Authorization', 'ngrok-skip-browser-warning']
   },
 });
 

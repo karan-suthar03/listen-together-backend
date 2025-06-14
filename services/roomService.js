@@ -26,7 +26,8 @@ exports.createRoom = async (hostName = 'Host') => {
     name: hostName, 
     isHost: true,
     joinedAt: Date.now()
-  };  const room = { 
+  };  
+  const room = { 
     code, 
     hostId: userId, 
     members: [user],

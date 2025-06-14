@@ -68,7 +68,8 @@ class MusicService {
         playbackState.currentTime = seekTime;
         playbackState.lastUpdated = now;
         break;
-          case 'stop':
+      
+      case 'stop':
         playbackState.isPlaying = false;
         playbackState.currentTime = 0;
         playbackState.lastUpdated = now;
@@ -82,7 +83,9 @@ class MusicService {
       case 'previous':
         this.previousTrack(playbackState);
         playbackState.lastUpdated = now;
-        break;      case 'playTrack':
+        break;      
+      
+      case 'playTrack':
         const trackIndex = data.trackIndex;
         if (trackIndex !== undefined) {
           this.playTrackAtIndex(playbackState, trackIndex);
@@ -93,7 +96,6 @@ class MusicService {
 
     return playbackState;
   }
-
   addToQueue(playbackState, songData, addedBy) {
     const queueItem = {
       id: songData.id || (Date.now().toString() + Math.random().toString(36).substr(2, 9)), 
@@ -102,6 +104,8 @@ class MusicService {
       duration: songData.duration,
       coverUrl: songData.coverUrl || null,
       mp3Url: songData.mp3Url || null,
+      videoId: songData.videoId || null,
+      youtubeUrl: songData.youtubeUrl || null,
       addedBy: addedBy,
       addedAt: new Date(),
       downloadStatus: songData.downloadStatus || 'completed',
@@ -169,7 +173,9 @@ class MusicService {
       queue: playbackState.queue,
       currentTrackIndex: playbackState.currentTrackIndex
     };
-  }  async getSyncData(playbackState) {
+  }  
+  
+  async getSyncData(playbackState) {
     let currentTrack = null;
     if (playbackState.currentTrackIndex >= 0 && playbackState.queue.length > playbackState.currentTrackIndex) {
       currentTrack = playbackState.queue[playbackState.currentTrackIndex];

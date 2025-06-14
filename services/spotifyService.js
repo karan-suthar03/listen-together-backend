@@ -41,78 +41,88 @@ class SpotifyService extends EventEmitter {
       throw new Error(`Failed to process Spotify URL: ${error.message}`);
     }
   }
-
   async processSpotifyPlaylist(playlistInfo, spotifyUrl) {
     console.log(`Processing playlist: ${playlistInfo.name} with ${playlistInfo.trackList.length} tracks`);
     
-    const processedTracks = [];
-    
-    for (let i = 0; i < playlistInfo.trackList.length; i++) {
-      const track = playlistInfo.trackList[i];
-      
-      try {
-        console.log(`Processing track ${i + 1}/${playlistInfo.trackList.length}: ${track.title}`);
-        
-        const trackName = track.title || track.name;
-        const artist = track.subtitle || (track.artists && track.artists[0] ? track.artists[0].name : '');
-        
-        if (!trackName) {
-          console.warn(`Skipping track ${i + 1}: No title found`);
-          continue;
-        }
-
-        const searchQuery = `${trackName} ${artist}`.trim();
-        const ytResult = await ytSearch(searchQuery);
-        
-        if (!ytResult || !ytResult.videos || ytResult.videos.length === 0) {
-          console.warn(`No YouTube results for: ${searchQuery}`);
-          continue;
-        }
-
-        const bestMatch = ytResult.videos[0];
-        const videoId = this.extractVideoId(bestMatch.url);
-        
-        if (!videoId) {
-          console.warn(`Could not extract video ID for: ${searchQuery}`);
-          continue;
-        }
-
-        const processedTrack = {
-          spotifyTitle: trackName,
-          spotifyArtist: artist,
-          spotifyPlaylist: playlistInfo.name,
-          spotifyUrl: spotifyUrl,
-          spotifyTrackIndex: i,
-          
-          title: bestMatch.title,
-          artist: bestMatch.author ? bestMatch.author.name : artist,
-          duration: bestMatch.duration ? this.parseDuration(bestMatch.duration.timestamp) : 0,
-          thumbnail: track.image || bestMatch.thumbnail || '',
-          videoId: videoId,
-          youtubeUrl: bestMatch.url,
-          
-          searchQuery: searchQuery,
-          source: 'spotify',
-          isPlaylistTrack: true
-        };
-
-        processedTracks.push(processedTrack);
-        
-      } catch (error) {
-        console.error(`Error processing track ${i + 1}:`, error);
-      }
-    }
-
+    // Return basic playlist info immediately and process tracks as a stream
     return {
       type: 'playlist',
       name: playlistInfo.name,
       description: playlistInfo.description || '',
       thumbnail: playlistInfo.images && playlistInfo.images[0] ? playlistInfo.images[0].url : '',
-      trackCount: processedTracks.length,
+      trackCount: playlistInfo.trackList.length,
       originalTrackCount: playlistInfo.trackList.length,
-      tracks: processedTracks,
+      tracks: playlistInfo.trackList, // Return raw track list for streaming processing
       spotifyUrl: spotifyUrl
     };
+  }
+  async processSpotifyTrackFromPlaylist(track, playlistName, spotifyUrl, trackIndex) {
+    try {
+      console.log('🎵 processSpotifyTrackFromPlaylist called with:', { 
+        trackTitle: track.title || track.name, 
+        playlistName, 
+        trackIndex 
+      });
+      
+      const trackName = track.title || track.name;
+      const artist = track.subtitle || (track.artists && track.artists[0] ? track.artists[0].name : '');
+      
+      console.log('🎵 Track details:', { trackName, artist });
+      
+      if (!trackName) {
+        throw new Error('No title found for track');
+      }
+
+      const searchQuery = `${trackName}`.trim();
+      console.log('🎵 YouTube search query:', searchQuery);
+      
+      const ytResult = await ytSearch(searchQuery);
+      console.log('🎵 YouTube search result:', ytResult ? 'Found results' : 'No results', ytResult?.videos?.length || 0, 'videos');
+      
+      if (!ytResult || !ytResult.videos || ytResult.videos.length === 0) {
+        throw new Error(`No YouTube results for: ${searchQuery}`);
+      }
+
+      const bestMatch = ytResult.videos[0];
+      console.log('🎵 Best match:', { title: bestMatch.title, url: bestMatch.url });
+      
+      const videoId = this.extractVideoId(bestMatch.url);
+      console.log('🎵 Extracted video ID:', videoId);
+      
+      if (!videoId) {
+        throw new Error(`Could not extract video ID for: ${searchQuery}`);
+      }
+
+      const result = {
+        spotifyTitle: trackName,
+        spotifyArtist: artist,
+        spotifyPlaylist: playlistName,
+        spotifyUrl: spotifyUrl,
+        spotifyTrackIndex: trackIndex,
+        
+        title: bestMatch.title,
+        artist: bestMatch.author ? bestMatch.author.name : artist,
+        duration: bestMatch.duration ? this.parseDuration(bestMatch.duration.timestamp) : 0,
+        thumbnail: track.image || bestMatch.thumbnail || '',
+        videoId: videoId,
+        youtubeUrl: bestMatch.url,
+        
+        searchQuery: searchQuery,
+        source: 'spotify',
+        isPlaylistTrack: true
+      };
+      
+      console.log('🎵 processSpotifyTrackFromPlaylist success:', { 
+        title: result.title, 
+        videoId: result.videoId 
+      });
+      
+      return result;
+      
+    } catch (error) {
+      console.error(`🎵 processSpotifyTrackFromPlaylist error:`, error.message);
+      throw error;
+    }
   }
 
   async processSpotifyTrack(trackInfo, spotifyUrl) {
@@ -122,7 +132,7 @@ class SpotifyService extends EventEmitter {
     const duration = trackInfo.duration_ms ? Math.floor(trackInfo.duration_ms / 1000) : 0;
     const spotifyThumbnail = trackInfo.images && trackInfo.images[0] ? trackInfo.images[0].url : '';
     
-    const searchQuery = `${trackName} ${artist}`.trim();
+    const searchQuery = `${trackName}`.trim();
     console.log('Searching YouTube for:', searchQuery);
     
     const ytResult = await ytSearch(searchQuery);

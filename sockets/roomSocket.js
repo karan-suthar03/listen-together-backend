@@ -4,7 +4,8 @@ const socketUserRoom = new Map();
 
 function registerRoomSocket(io) {
   io.on('connection', (socket) => {
-    console.log('Socket connected:', socket.id);    socket.on('join-room', async ({ roomCode, user }) => {
+    console.log('Socket connected:', socket.id);    
+    socket.on('join-room', async ({ roomCode, user }) => {
       console.log('🚪 User joining room via socket:', { roomCode, user });
       socket.join(roomCode);
       socketUserRoom.set(socket.id, { user, roomCode });
@@ -29,7 +30,9 @@ function registerRoomSocket(io) {
       } else {
         console.log('🚪 Failed to add user to room:', { roomCode, user });
       }
-    });    socket.on('leave-room', ({ roomCode }) => {
+    });    
+    
+    socket.on('leave-room', ({ roomCode }) => {
       const info = socketUserRoom.get(socket.id);
       if (info && info.roomCode === roomCode) {
         socket.leave(roomCode);
@@ -43,7 +46,9 @@ function registerRoomSocket(io) {
         
         socketUserRoom.delete(socket.id);
       }
-    });    socket.on('disconnect', () => {
+    });    
+    
+    socket.on('disconnect', () => {
       const info = socketUserRoom.get(socket.id);
       if (info) {
         const { roomCode, user } = info;

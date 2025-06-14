@@ -15,7 +15,8 @@ class YouTubeService extends EventEmitter {
   }
 
   async getVideoInfo(url) {
-    try {      const info = await ytdl.getInfo(url);
+    try {      
+      const info = await ytdl.getInfo(url);
       const thumbnails = info.videoDetails.thumbnails;
       let bestThumbnail;
       
@@ -74,12 +75,11 @@ class YouTubeService extends EventEmitter {
     if (this.downloadQueue.has(videoId)) {
       console.log(`Download for ${videoId} already in progress`);
       return this.downloadQueue.get(videoId);
-    }
-
-    const downloadPromise = new Promise((resolve, reject) => {
+    }    const downloadPromise = new Promise((resolve, reject) => {
       const startTime = Date.now();
       let totalSize = 0;
       let downloadedSize = 0;
+      let lastProgressEmit = 0; // Track when we last emitted progress
 
       try {
         const stream = ytdl(url, { 
@@ -91,6 +91,7 @@ class YouTubeService extends EventEmitter {
         
         stream.on('response', (response) => {
           totalSize = parseInt(response.headers['content-length']) || 0;
+          lastProgressEmit = Date.now();
           
           this.emit('downloadProgress', {
             videoId,
@@ -106,8 +107,11 @@ class YouTubeService extends EventEmitter {
         stream.on('data', (chunk) => {
           downloadedSize += chunk.length;
           const progress = totalSize > 0 ? Math.round((downloadedSize / totalSize) * 100) : 0;
+          const now = Date.now();
           
-          if (progress % 5 === 0 || Date.now() - startTime > 2000) {
+          // Emit progress every 2 seconds instead of every 5%
+          if (now - lastProgressEmit >= 2000) {
+            lastProgressEmit = now;
             this.emit('downloadProgress', {
               videoId,
               roomCode,
@@ -139,11 +143,20 @@ class YouTubeService extends EventEmitter {
           reject(error);
         });
 
-        stream.pipe(writeStream);
-
-        writeStream.on('finish', () => {
+        stream.pipe(writeStream);        writeStream.on('finish', () => {
           const elapsed = (Date.now() - startTime) / 1000;
           console.log(`Downloaded ${filename} in ${elapsed} seconds`);
+          
+          // Emit final progress update immediately before completion
+          this.emit('downloadProgress', {
+            videoId,
+            roomCode,
+            queueItemId,
+            progress: 100,
+            totalSize,
+            downloadedSize: totalSize,
+            status: 'completed'
+          });
           
           this.downloadQueue.delete(videoId);
           this.emit('downloadComplete', {
