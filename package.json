@@ -1,0 +1,35 @@
+{
+  "name": "listentogether-server",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "debug": "node --inspect index.js",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "lint": "eslint . --ext .js",
+    "lint:fix": "eslint . --ext .js --fix",
+    "clean": "rm -rf downloads/*.mp3",
+    "stats": "node -e \"console.log(require('./services/roomService').getRoomStats())\""
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@distube/ytdl-core": "^4.16.12",
+    "cors": "^2.8.5",
+    "crypto": "^1.0.1",
+    "express": "^4.21.2",
+    "express-validator": "^7.2.1",
+    "node-fetch": "^2.7.0",
+    "path": "^0.12.7",
+    "socket.io": "^4.8.1",
+    "spotify-url-info": "^3.2.18",
+    "ws": "^8.18.2",
+    "yt-search": "^2.13.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.10"
+  }
+}
