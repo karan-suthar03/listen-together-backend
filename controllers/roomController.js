@@ -19,6 +19,13 @@ class RoomController {
     // Handle room membership change for cleanup
     roomCleanupService.handleRoomMembershipChange(code);
     
+    // Emit socket events to notify other users about the new participant
+    if (req.io) {
+      console.log('🚪 Emitting socket events for HTTP room join:', { code, user: result.user });
+      req.io.to(code).emit('room-updated', result.room);
+      req.io.to(code).emit('user-joined', { user: result.user, room: result.room });
+    }
+    
     return createSuccessResponse(result, 'Joined room successfully');
   }
   async getRoomDetails(req, res) {

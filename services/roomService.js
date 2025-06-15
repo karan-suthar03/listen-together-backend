@@ -38,10 +38,8 @@ exports.createRoom = async (hostName = 'Host') => {
     createdAt: Date.now()
   };
   rooms.set(code, room);
-    // Initialize download manager for this room
   downloadManager.initializeRoom(code);
   
-  // Check for existing files in case there are any pre-existing downloads
   setTimeout(() => {
     downloadManager.checkAllExistingFiles(code).catch(error => {
       console.error('Error checking existing files on room creation:', error);
@@ -76,7 +74,6 @@ exports.updatePlayback = (roomCode, action, data = {}) => {
   
   room.playback = musicService.updatePlaybackState(room.playback, action, data);
   
-  // Check if track changed and notify download manager
   if (room.playback.currentTrackIndex !== previousTrackIndex) {
     console.log(`🎵 Track changed from ${previousTrackIndex} to ${room.playback.currentTrackIndex} in room ${roomCode}`);
     downloadManager.onTrackChange(roomCode, room.playback.currentTrackIndex).catch(error => {
@@ -141,10 +138,8 @@ exports.addToQueue = (roomCode, songData, addedBy) => {
   
   const queueItem = musicService.addToQueue(room.playback, songData, addedBy);
   
-  // Initialize download manager for this room if needed
   downloadManager.initializeRoom(roomCode);
   
-  // Trigger download processing for this room
   downloadManager.processDownloads(roomCode).catch(error => {
     console.error('Error processing downloads after adding to queue:', error);
   });
@@ -231,7 +226,6 @@ exports.deleteRoom = async (roomCode) => {
   const room = rooms.get(roomCode);
   if (!room) return null;
   
-  // Clean up download manager state for this room
   downloadManager.cleanupRoom(roomCode);
   
   rooms.delete(roomCode);  return room;
@@ -241,7 +235,6 @@ exports.getRoom = (roomCode) => {
   const room = rooms.get(roomCode);
   if (!room) return null;
   
-  // Return room data with participant information
   return {
     code: room.code,
     hostId: room.hostId,

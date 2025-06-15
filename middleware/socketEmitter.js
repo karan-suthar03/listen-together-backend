@@ -36,6 +36,22 @@ class SocketEmitter {
   emitParticipantUpdate(roomCode, participants) {
     this.io.to(roomCode).emit('participantsUpdated', participants);
   }
+
+  emitUserJoined(roomCode, user, room) {
+    this.io.to(roomCode).emit('user-joined', { user, room });
+  }
+
+  emitUserLeft(roomCode, user, room) {
+    this.io.to(roomCode).emit('user-left', { user, room });
+  }
+
+  emitParticipantUpdated(roomCode, user, room) {
+    this.io.to(roomCode).emit('participant-updated', { user, room });
+  }
+
+  emitRoomUpdated(roomCode, room) {
+    this.io.to(roomCode).emit('room-updated', room);
+  }
 }
 
 module.exports = SocketEmitter;

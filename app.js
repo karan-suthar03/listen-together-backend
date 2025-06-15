@@ -5,6 +5,12 @@ const config = require('./config/config');
 
 function createApp(io) {
   const app = express();
+  // Add 200ms delay middleware for all requests
+  app.use((req, res, next) => {
+    setTimeout(() => {
+      next();
+    }, 500);
+  });
   app.use(cors({
     origin: true, // Allow all origins for ngrok testing
     credentials: config.cors.credentials,
