@@ -3,6 +3,8 @@ const path = require('path');
 
 const downloadManager = require('./downloadManager');
 
+const config = require('../config/config');
+
 class MusicService {
   constructor() {
     this.metadata = this.loadMetadata();
@@ -97,8 +99,12 @@ class MusicService {
     }
 
     return playbackState;
-  }
-  addToQueue(playbackState, songData, addedBy) {
+  }  addToQueue(playbackState, songData, addedBy) {
+    // Check if queue is at maximum capacity
+    if (playbackState.queue.length >= config.queue.maxSongs) {
+      throw new Error(`Queue is full. Maximum ${config.queue.maxSongs} songs allowed.`);
+    }
+
     const queueItem = {
       id: songData.id || (Date.now().toString() + Math.random().toString(36).substr(2, 9)), 
       title: songData.title,

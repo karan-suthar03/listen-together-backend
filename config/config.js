@@ -36,9 +36,11 @@ const config = {
   youtube: {
     maxDuration: process.env.MAX_YOUTUBE_DURATION || 600, 
     quality: process.env.YOUTUBE_QUALITY || 'highestaudio'
+  },  spotify: {
+    maxPlaylistTracks: process.env.MAX_PLAYLIST_TRACKS || 10
   },
-  spotify: {
-    maxPlaylistTracks: process.env.MAX_PLAYLIST_TRACKS || 50
+  queue: {
+    maxSongs: process.env.MAX_QUEUE_SONGS || 10
   },
   validation: {
     roomCode: {

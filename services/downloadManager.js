@@ -2,11 +2,10 @@ const { EventEmitter } = require('events');
 const youtubeService = require('./youtubeService');
 const roomService = require('./roomService');
 
-class DownloadManager extends EventEmitter {
-  constructor() {
+class DownloadManager extends EventEmitter {  constructor() {
     super();
     this.roomDownloads = new Map();
-    this.MAX_PREDOWNLOAD_COUNT = 2;
+    this.MAX_CONCURRENT_DOWNLOADS = 2;
   }
 
   initializeRoom(roomCode) {
@@ -95,12 +94,14 @@ class DownloadManager extends EventEmitter {
 
     await this.checkAllExistingFiles(roomCode);
 
-    const songsToDownload = this.getSongsToDownload(queue, currentTrackIndex);
+    const songsToDownload = this.getSongsToDownload(queue, currentTrackIndex);    console.log(`📊 Songs that should be downloaded:`, songsToDownload.map(s => ({ title: s.title, videoId: s.videoId, status: s.downloadStatus })));
+    console.log(`📊 Currently downloading (${roomDownloadState.currentlyDownloading.size}/${this.MAX_CONCURRENT_DOWNLOADS}):`, Array.from(roomDownloadState.currentlyDownloading));for (const song of songsToDownload) {
+      // Check if we've reached the maximum concurrent downloads
+      if (roomDownloadState.currentlyDownloading.size >= this.MAX_CONCURRENT_DOWNLOADS) {
+        console.log(`⏸️ Max concurrent downloads (${this.MAX_CONCURRENT_DOWNLOADS}) reached, skipping ${song.title} for now`);
+        break;
+      }
 
-    console.log(`📊 Songs that should be downloaded:`, songsToDownload.map(s => ({ title: s.title, videoId: s.videoId, status: s.downloadStatus })));
-    console.log(`📊 Currently downloading:`, Array.from(roomDownloadState.currentlyDownloading));
-
-    for (const song of songsToDownload) {
       if (roomDownloadState.currentlyDownloading.has(song.videoId) || 
           song.downloadStatus === 'completed' || 
           song.downloadStatus === 'downloading') {
@@ -118,7 +119,7 @@ class DownloadManager extends EventEmitter {
           addedAt: Date.now()
         };
 
-        console.log(`🚀 Starting download: ${song.title}`);
+        console.log(`🚀 Starting download: ${song.title} (${roomDownloadState.currentlyDownloading.size + 1}/${this.MAX_CONCURRENT_DOWNLOADS})`);
         this.startDownload(downloadItem).catch(error => {
           console.error(`Error starting download for ${song.videoId}:`, error);
         });
@@ -127,22 +128,12 @@ class DownloadManager extends EventEmitter {
 
     roomDownloadState.lastCurrentTrackIndex = currentTrackIndex;
   }
-
   getSongsToDownload(queue, currentTrackIndex) {
     const songsToDownload = [];
 
-    if (currentTrackIndex === -1 && queue.length > 0) {
-      console.log(`📥 No current track, downloading first ${this.MAX_PREDOWNLOAD_COUNT} songs`);
-      for (let i = 0; i < Math.min(this.MAX_PREDOWNLOAD_COUNT, queue.length); i++) {
-        songsToDownload.push(queue[i]);
-      }
-    } else if (currentTrackIndex >= 0) {
-      const startIndex = currentTrackIndex;
-      const endIndex = Math.min(currentTrackIndex + this.MAX_PREDOWNLOAD_COUNT + 1, queue.length);
-
-      console.log(`📥 Current track: ${currentTrackIndex}, downloading from ${startIndex} to ${endIndex - 1}`);
-
-      for (let i = startIndex; i < endIndex; i++) {
+    if (queue.length > 0) {
+      console.log(`📥 Downloading all ${queue.length} songs in queue`);
+      for (let i = 0; i < queue.length; i++) {
         songsToDownload.push(queue[i]);
       }
     }
@@ -171,9 +162,9 @@ class DownloadManager extends EventEmitter {
 
     } catch (error) {
       console.error(`❌ Download failed: ${videoId}`, error);
-      roomService.updateQueueItemStatus(roomCode, queueItemId, 'error', 0);
-    } finally {
+      roomService.updateQueueItemStatus(roomCode, queueItemId, 'error', 0);    } finally {
       roomDownloadState.currentlyDownloading.delete(videoId);
+      console.log(`✅ Download slot freed for room ${roomCode}. Currently downloading: ${roomDownloadState.currentlyDownloading.size}/${this.MAX_CONCURRENT_DOWNLOADS}`);
 
       setTimeout(() => {
         this.processDownloads(roomCode).catch(err => {
