@@ -234,8 +234,33 @@ exports.deleteRoom = async (roomCode) => {
   // Clean up download manager state for this room
   downloadManager.cleanupRoom(roomCode);
   
-  rooms.delete(roomCode);
-  return room;
+  rooms.delete(roomCode);  return room;
+};
+
+exports.getRoom = (roomCode) => {
+  const room = rooms.get(roomCode);
+  if (!room) return null;
+  
+  // Return room data with participant information
+  return {
+    code: room.code,
+    hostId: room.hostId,
+    createdAt: room.createdAt,
+    isWorking: room.isWorking,
+    workingMessage: room.workingMessage,
+    members: room.members.map(member => ({
+      id: member.id,
+      name: member.name,
+      isHost: member.isHost,
+      joinedAt: member.joinedAt
+    })),
+    playback: {
+      isPlaying: room.playback.isPlaying,
+      currentTime: room.playback.currentTime,
+      currentTrack: room.playback.queue[room.playback.currentTrackIndex] || null,
+      queueLength: room.playback.queue.length
+    }
+  };
 };
 
 exports.getRoomStats = () => {
