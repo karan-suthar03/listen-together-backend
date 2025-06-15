@@ -1,6 +1,8 @@
 const fs = require('fs');
 const path = require('path');
 
+const downloadManager = require('./downloadManager');
+
 class MusicService {
   constructor() {
     this.metadata = this.loadMetadata();
@@ -191,7 +193,6 @@ class MusicService {
       duration: currentTrack ? currentTrack.duration : 0
     };
   }
-
   nextTrack(playbackState) {
     if (playbackState.queue.length === 0) return;
     
@@ -214,8 +215,7 @@ class MusicService {
       playbackState.currentTime = 0;
       playbackState.isPlaying = true;
     }
-  }
-  playTrackAtIndex(playbackState, index) {
+  }playTrackAtIndex(playbackState, index) {
     console.log('🎵 PlayTrackAtIndex called:', { index, queueLength: playbackState.queue.length });
     
     if (index < 0 || index >= playbackState.queue.length) {
@@ -236,6 +236,10 @@ class MusicService {
     playbackState.currentTime = 0;
     playbackState.isPlaying = true;
     playbackState.duration = track.duration || 0;
+    
+    // Notify download manager of track change
+    // We need to pass the roomCode somehow - let's modify this later
+    console.log('🎵 Track changed, should trigger download manager');
   }
 
   checkTrackCompletion(playbackState) {

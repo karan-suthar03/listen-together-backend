@@ -2,6 +2,7 @@ const crypto = require('crypto');
 const roomService = require('../services/roomService');
 const youtubeService = require('../services/youtubeService');
 const spotifyService = require('../services/spotifyService');
+const downloadManager = require('../services/downloadManager');
 const { createSuccessResponse } = require('../middleware/response');
 
 class QueueController {
@@ -166,9 +167,8 @@ class QueueController {
         result.room.playback && result.room.playback.queue ? result.room.playback.queue : [],
         result.room.playback ? result.room.playback.currentTrackIndex : -1
       );
-    }
-
-    this._startDownload(videoInfo.videoId, youtubeUrl, roomCode, queueItemId);
+    }    // Use download manager instead of direct download
+    await downloadManager.addToDownloadQueue(roomCode, videoInfo.videoId, youtubeUrl, queueItemId);
 
     return {
       type: 'video',
@@ -222,12 +222,7 @@ class QueueController {
       console.log('Emitting working state change via socket for playlist:', playlistMessage);
       this.socketEmitter.emitWorkingStateChange(roomCode, true, playlistMessage);
     }
-    
-    const stats = { successCount: 0 }; // Use object to maintain reference
-    const downloadQueue = [];
-    
-    // Start downloads in background as tracks get processed
-    this._startStreamingDownloads(downloadQueue);
+      const stats = { successCount: 0 }; // Use object to maintain reference
     
     // Process tracks asynchronously - each track gets added to queue as soon as its details are processed
     const processTrack = async (track, index) => {
@@ -297,16 +292,15 @@ class QueueController {
           if (result) {
             stats.successCount++;
             console.log(`🎵 Successfully added to queue: ${queueItem.title} (${stats.successCount} total)`);
+              // Add to download queue using download manager
+            await downloadManager.addToDownloadQueue(
+              roomCode, 
+              processedTrack.videoId, 
+              processedTrack.youtubeUrl, 
+              queueItemId
+            );
             
-            // Add to download queue
-            downloadQueue.push({
-              videoId: processedTrack.videoId,
-              youtubeUrl: processedTrack.youtubeUrl,
-              roomCode: roomCode,
-              queueItemId: queueItemId
-            });
-            
-            console.log(`🎵 Added to download queue: ${processedTrack.videoId}`);
+            console.log(`🎵 Added to download manager: ${processedTrack.videoId}`);
             
             // Emit queue update immediately after adding each track
             if (this.socketEmitter) {
@@ -407,9 +401,8 @@ class QueueController {
         result.room.playback && result.room.playback.queue ? result.room.playback.queue : [],
         result.room.playback ? result.room.playback.currentTrackIndex : -1
       );
-    }
-
-    this._startDownload(spotifyResult.videoId, spotifyResult.youtubeUrl, roomCode, queueItemId);
+    }    // Use download manager instead of direct download
+    await downloadManager.addToDownloadQueue(roomCode, spotifyResult.videoId, spotifyResult.youtubeUrl, queueItemId);
 
     return {
       type: 'track',
@@ -434,121 +427,29 @@ class QueueController {
         result.playback && result.playback.queue ? result.playback.queue : [],
         result.playback ? result.playback.currentTrackIndex : -1
       );
-    }
-
-    return createSuccessResponse({
+    }    return createSuccessResponse({
       currentTrackIndex: result.playback ? result.playback.currentTrackIndex : -1,
       queueLength: result.playback && result.playback.queue ? result.playback.queue.length : 0,
       isPlaying: result.playback ? result.playback.isPlaying : false
     }, 'Track is now playing');
   }
-  _startStreamingDownloads(downloadQueue) {
-    console.log('🔄 Starting streaming downloads...');
+  async getDownloadStats(req, res) {
+    const { roomCode } = req.params;
+    const stats = downloadManager.getRoomDownloadStats(roomCode);
     
-    // Monitor the download queue and start downloads as items are added
-    const concurrentLimit = 3; // Download max 3 songs simultaneously
-    let currentDownloads = 0;
-    let processedCount = 0;
-    
-    const processDownloads = () => {
-      console.log(`🔄 processDownloads called: queue=${downloadQueue.length}, active=${currentDownloads}, limit=${concurrentLimit}`);
-      
-      while (downloadQueue.length > 0 && currentDownloads < concurrentLimit) {
-        const downloadItem = downloadQueue.shift();
-        currentDownloads++;
-        processedCount++;
-        
-        console.log(`🔄 Starting download ${processedCount}: ${downloadItem.videoId} (${currentDownloads} active downloads)`);
-        
-        youtubeService.downloadVideo(
-          downloadItem.videoId, 
-          downloadItem.youtubeUrl, 
-          downloadItem.roomCode, 
-          downloadItem.queueItemId
-        )
-        .then(() => {
-          console.log(`✅ Download completed: ${downloadItem.videoId}`);
-        })
-        .catch(error => {
-          console.error('❌ Download failed:', downloadItem.videoId, error);
-          roomService.updateQueueItemStatus(downloadItem.roomCode, downloadItem.queueItemId, 'error', 0);
-        })        .finally(() => {
-          currentDownloads--;
-          console.log(`🔄 Download finished for ${downloadItem.videoId}, active downloads: ${currentDownloads}`);
-          // Immediately check for more downloads when one completes
-          setImmediate(() => processDownloads());
-        });
-      }
-    };
-    
-    // Start initial downloads
-    processDownloads();
-      // Check for new downloads periodically
-    const checkInterval = setInterval(() => {
-      if (downloadQueue.length > 0) {
-        console.log(`🔄 Periodic check: found ${downloadQueue.length} items in queue, processing...`);
-        processDownloads();
-      }
-    }, 1000); // Check every second
-    
-    // Keep the interval running longer to handle delayed additions
-    setTimeout(() => {
-      clearInterval(checkInterval);
-      console.log('🔄 Stopping periodic download checks after timeout');
-    }, 60000); // Stop after 1 minute
-  }
-  
-  _startPlaylistDownloads(downloadQueue) {
-    console.log(`Starting concurrent downloads for ${downloadQueue.length} tracks`);
-    
-    // Process downloads concurrently with a limit to avoid overwhelming the system
-    const concurrentLimit = 3; // Download max 3 songs simultaneously
-    let currentDownloads = 0;
-    let queueIndex = 0;
-    
-    const processNextDownload = () => {
-      if (queueIndex >= downloadQueue.length || currentDownloads >= concurrentLimit) {
-        return;
-      }
-      
-      const downloadItem = downloadQueue[queueIndex++];
-      currentDownloads++;
-      
-      console.log(`Starting download ${queueIndex}/${downloadQueue.length}: ${downloadItem.videoId}`);
-      
-      youtubeService.downloadVideo(
-        downloadItem.videoId, 
-        downloadItem.youtubeUrl, 
-        downloadItem.roomCode, 
-        downloadItem.queueItemId
-      )
-      .then(() => {
-        console.log(`Download completed: ${downloadItem.videoId}`);
-      })
-      .catch(error => {
-        console.error('Download failed:', downloadItem.videoId, error);
-        roomService.updateQueueItemStatus(downloadItem.roomCode, downloadItem.queueItemId, 'error', 0);
-      })
-      .finally(() => {
-        currentDownloads--;
-        // Start next download when one completes
-        processNextDownload();
-      });
-      
-      // Start next download immediately if under limit
-      processNextDownload();
-    };
-    
-    // Start initial batch of downloads
-    processNextDownload();
+    return createSuccessResponse(stats, 'Download stats retrieved successfully');
   }
 
-  _startDownload(videoId, youtubeUrl, roomCode, queueItemId) {
-    youtubeService.downloadVideo(videoId, youtubeUrl, roomCode, queueItemId)
-      .catch(error => {
-        console.error('Download failed:', error);
-        roomService.updateQueueItemStatus(roomCode, queueItemId, 'error', 0);
-      });
+  async refreshDownloadStatus(req, res) {
+    const { roomCode } = req.params;
+    
+    // Trigger a check for existing files
+    await downloadManager.checkAllExistingFiles(roomCode);
+    
+    // Process downloads to update the queue
+    await downloadManager.processDownloads(roomCode);
+    
+    return createSuccessResponse({}, 'Download status refreshed successfully');
   }
 }
 

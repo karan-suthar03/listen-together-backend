@@ -45,11 +45,10 @@ class YouTubeService extends EventEmitter {
           artist: trackData.artist,
           duration: trackData.duration 
         });
-        
-        return {
+          return {
           title: trackData.title || 'Unknown Title',
           artist: trackData.artist || 'Unknown Artist',
-          duration: trackData.duration || 0,
+          duration: Math.floor((trackData.duration || 0) / 1000),
           thumbnail: trackData.poster || '',
           videoId: videoId,
           viewCount: trackData.viewCount || 0,

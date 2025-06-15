@@ -1,5 +1,6 @@
 const crypto = require('crypto');
 const musicService = require('./musicService');
+const downloadManager = require('./downloadManager');
 const rooms = new Map();
 
 function generateRoomCode() {
@@ -37,6 +38,16 @@ exports.createRoom = async (hostName = 'Host') => {
     createdAt: Date.now()
   };
   rooms.set(code, room);
+    // Initialize download manager for this room
+  downloadManager.initializeRoom(code);
+  
+  // Check for existing files in case there are any pre-existing downloads
+  setTimeout(() => {
+    downloadManager.checkAllExistingFiles(code).catch(error => {
+      console.error('Error checking existing files on room creation:', error);
+    });
+  }, 1000);
+  
   return { room, user };
 };
 
@@ -61,7 +72,18 @@ exports.updatePlayback = (roomCode, action, data = {}) => {
   const room = rooms.get(roomCode);
   if (!room) return null;
   
+  const previousTrackIndex = room.playback.currentTrackIndex;
+  
   room.playback = musicService.updatePlaybackState(room.playback, action, data);
+  
+  // Check if track changed and notify download manager
+  if (room.playback.currentTrackIndex !== previousTrackIndex) {
+    console.log(`🎵 Track changed from ${previousTrackIndex} to ${room.playback.currentTrackIndex} in room ${roomCode}`);
+    downloadManager.onTrackChange(roomCode, room.playback.currentTrackIndex).catch(error => {
+      console.error('Error notifying download manager of track change:', error);
+    });
+  }
+  
   return room;
 };
 
@@ -118,6 +140,15 @@ exports.addToQueue = (roomCode, songData, addedBy) => {
   if (!room) return null;
   
   const queueItem = musicService.addToQueue(room.playback, songData, addedBy);
+  
+  // Initialize download manager for this room if needed
+  downloadManager.initializeRoom(roomCode);
+  
+  // Trigger download processing for this room
+  downloadManager.processDownloads(roomCode).catch(error => {
+    console.error('Error processing downloads after adding to queue:', error);
+  });
+  
   return { room, queueItem };
 };
 
@@ -199,6 +230,9 @@ exports.updateParticipant = (roomCode, userId, updateData) => {
 exports.deleteRoom = async (roomCode) => {
   const room = rooms.get(roomCode);
   if (!room) return null;
+  
+  // Clean up download manager state for this room
+  downloadManager.cleanupRoom(roomCode);
   
   rooms.delete(roomCode);
   return room;

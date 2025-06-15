@@ -43,6 +43,32 @@ router.put('/:roomCode/move',
   validateRequest,
   asyncHandler(async (req, res) => {
     const result = await queueController.moveInQueue(req, res);
+    sendResponse(res, 200, result);  })
+);
+
+router.get('/:roomCode/download-stats',
+  queueValidationRules.roomCode,
+  validateRequest,
+  asyncHandler(async (req, res) => {
+    const result = await queueController.getDownloadStats(req, res);
+    sendResponse(res, 200, result);
+  })
+);
+
+router.post('/:roomCode/refresh-downloads',
+  queueValidationRules.roomCode,
+  validateRequest,
+  asyncHandler(async (req, res) => {
+    const result = await queueController.refreshDownloadStatus(req, res);
+    sendResponse(res, 200, result);
+  })
+);
+
+router.post('/:roomCode/play/:index',
+  [...queueValidationRules.roomCode, ...queueValidationRules.removeFromQueue], // Reuse index validation
+  validateRequest,
+  asyncHandler(async (req, res) => {
+    const result = await queueController.playTrack(req, res);
     sendResponse(res, 200, result);
   })
 );

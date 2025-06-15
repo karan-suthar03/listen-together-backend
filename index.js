@@ -8,6 +8,7 @@ const youtubeService = require('./services/youtubeService');
 const roomService = require('./services/roomService');
 const roomCleanupService = require('./services/roomCleanupService');
 const supabaseService = require('./services/supabaseService');
+const downloadManager = require('./services/downloadManager');
 
 const port = config.server.port;
 const io = new Server({
@@ -136,6 +137,27 @@ youtubeService.on('downloadError', (data) => {
     queueItemId,
     error,
     status: 'error'
+  });
+});
+
+// Listen for download manager events
+downloadManager.on('fileFoundPreDownloaded', (data) => {
+  const { roomCode, queueItemId, videoId, mp3Url, status } = data;
+  
+  console.log('Pre-downloaded file found:', { roomCode, queueItemId, videoId, status });
+  
+  // Emit to room that this item is already completed
+  io.to(roomCode).emit('queueItemComplete', {
+    queueItemId,
+    mp3Url,
+    status: 'completed'
+  });
+  
+  // Also emit general progress update
+  io.to(roomCode).emit('queueItemProgress', {
+    queueItemId,
+    progress: 100,
+    status: 'completed'
   });
 });
 
