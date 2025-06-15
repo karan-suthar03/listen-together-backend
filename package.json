@@ -18,6 +18,7 @@
   "description": "",
   "dependencies": {
     "@distube/ytdl-core": "^4.16.12",
+    "@hydralerne/youtube-api": "^1.1.5",
     "@supabase/supabase-js": "^2.50.0",
     "cors": "^2.8.5",
     "crypto": "^1.0.1",

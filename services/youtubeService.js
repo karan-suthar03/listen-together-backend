@@ -1,4 +1,5 @@
 const ytdl = require('@distube/ytdl-core');
+const { getTrackData } = require('@hydralerne/youtube-api');
 const fs = require('fs');
 const path = require('path');
 const { EventEmitter } = require('events');
@@ -15,33 +16,84 @@ class YouTubeService extends EventEmitter {
     }
   }
 
+  // Helper function to extract video ID from YouTube URL
+  extractVideoId(url) {
+    const regex = /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/;
+    const match = url.match(regex);
+    return match ? match[1] : null;
+  }
   async getVideoInfo(url) {
-    try {      
-      const info = await ytdl.getInfo(url);
-      const thumbnails = info.videoDetails.thumbnails;
-      let bestThumbnail;
-      
-      bestThumbnail = thumbnails.find(t => t.width >= 320 && t.width <= 640);
-      
-      if (!bestThumbnail) {
-        bestThumbnail = thumbnails
-          .sort((a, b) => (b.width * b.height) - (a.width * a.height))[0];
+    try {
+      const videoId = this.extractVideoId(url);
+      if (!videoId) {
+        throw new Error('Invalid YouTube URL or could not extract video ID');
       }
       
-      if (!bestThumbnail) {
-        bestThumbnail = thumbnails[thumbnails.length - 1];
+      console.log(`🎵 Getting track data for video ID: ${videoId} (fast API)`);
+      
+      // Try the fast YouTube API first
+      try {
+        const trackData = await getTrackData(videoId);
+        
+        if (trackData.error) {
+          console.warn(`🎵 YouTube API returned error: ${trackData.error}, falling back to ytdl`);
+          throw new Error(`YouTube API error: ${trackData.error}`);
+        }
+        
+        console.log(`🎵 Fast API success:`, { 
+          title: trackData.title, 
+          artist: trackData.artist,
+          duration: trackData.duration 
+        });
+        
+        return {
+          title: trackData.title || 'Unknown Title',
+          artist: trackData.artist || 'Unknown Artist',
+          duration: trackData.duration || 0,
+          thumbnail: trackData.poster || '',
+          videoId: videoId,
+          viewCount: trackData.viewCount || 0,
+          uploadDate: trackData.uploadDate || null,
+          url: url
+        };
+        
+      } catch (apiError) {
+        console.warn(`🎵 Fast API failed: ${apiError.message}, falling back to ytdl.getInfo()`);
+        
+        // Fallback to ytdl.getInfo()
+        console.log(`🎵 Using ytdl.getInfo() fallback for video ID: ${videoId}`);
+        const info = await ytdl.getInfo(url);
+        const thumbnails = info.videoDetails.thumbnails;
+        let bestThumbnail;
+        
+        bestThumbnail = thumbnails.find(t => t.width >= 320 && t.width <= 640);
+        
+        if (!bestThumbnail) {
+          bestThumbnail = thumbnails
+            .sort((a, b) => (b.width * b.height) - (a.width * a.height))[0];
+        }
+        
+        if (!bestThumbnail) {
+          bestThumbnail = thumbnails[thumbnails.length - 1];
+        }
+        
+        console.log(`🎵 ytdl.getInfo() fallback success:`, { 
+          title: info.videoDetails.title,
+          artist: info.videoDetails.author.name
+        });
+        
+        return {
+          title: info.videoDetails.title,
+          artist: info.videoDetails.author.name,
+          duration: parseInt(info.videoDetails.lengthSeconds),
+          thumbnail: bestThumbnail?.url || '',
+          videoId: info.videoDetails.videoId,
+          viewCount: info.videoDetails.viewCount,
+          uploadDate: info.videoDetails.uploadDate,
+          url: info.videoDetails.video_url
+        };
       }
       
-      return {
-        title: info.videoDetails.title,
-        artist: info.videoDetails.author.name,
-        duration: parseInt(info.videoDetails.lengthSeconds),
-        thumbnail: bestThumbnail?.url || '',
-        videoId: info.videoDetails.videoId,
-        viewCount: info.videoDetails.viewCount,
-        uploadDate: info.videoDetails.uploadDate,
-        url: info.videoDetails.video_url
-      };
     } catch (error) {
       console.error('Error getting video info:', error);
       throw new Error('Failed to get video information');
