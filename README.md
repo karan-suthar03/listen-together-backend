@@ -1,11 +1,14 @@
 # ListenTogether Server - Refactored
 
-A real-time music streaming server that allows multiple users to listen to music together in synchronized rooms with YouTube and Spotify integration.
+A real-time music streaming server that allows multiple users to listen to music together in synchronized rooms with
+YouTube and Spotify integration.
 
 ## 🗂️ Storage Integration
 
 ### **Supabase Storage**
+
 Files are now stored in Supabase Storage instead of local disk:
+
 - ✅ **Scalable cloud storage** with CDN delivery
 - ✅ **Direct file access** via public URLs
 - ✅ **Automatic backups** and redundancy
@@ -58,22 +61,26 @@ listentogether-server/
 ## 🎯 Key Improvements
 
 ### **1. Separation of Concerns**
+
 - **Routes**: Thin layer for request/response handling
 - **Controllers**: Business logic and orchestration
 - **Services**: Core domain logic
 - **Middleware**: Cross-cutting concerns
 
 ### **2. Consistent Error Handling**
+
 - Custom error classes with proper HTTP status codes
 - Centralized error handling middleware
 - Meaningful error messages and codes
 
 ### **3. Input Validation**
+
 - Express-validator integration
 - Reusable validation rules
 - Proper sanitization
 
 ### **4. Response Standardization**
+
 ```javascript
 // Success Response
 {
@@ -92,11 +99,13 @@ listentogether-server/
 ```
 
 ### **5. Socket.IO Abstraction**
+
 - Centralized socket event handling
 - Type-safe event emissions
 - Better organization of real-time features
 
 ### **6. Configuration Management**
+
 - Environment-based configuration
 - Centralized settings
 - Easy deployment configuration
@@ -104,6 +113,7 @@ listentogether-server/
 ## 🚀 API Endpoints
 
 ### **Room Management**
+
 ```
 POST   /api/rooms              # Create room
 POST   /api/rooms/join         # Join room
@@ -112,6 +122,7 @@ DELETE /api/rooms/:roomCode    # Delete room
 ```
 
 ### **Queue Management**
+
 ```
 GET    /api/queue/:roomCode              # Get queue
 POST   /api/queue/:roomCode/add         # Add song
@@ -120,6 +131,7 @@ PUT    /api/queue/:roomCode/move        # Reorder songs
 ```
 
 ### **Music Control**
+
 ```
 GET    /api/music/sync/:roomCode        # Get playback state
 GET    /api/music/stream/:filename      # Stream audio
@@ -128,6 +140,7 @@ GET    /api/music/info/:filename        # Get audio info
 ```
 
 ### **Participant Management**
+
 ```
 GET    /api/participants/:roomCode/participants      # Get participants
 POST   /api/participants/:roomCode/participants     # Add participant
@@ -138,10 +151,12 @@ PUT    /api/participants/:roomCode/participants/:id # Update participant
 ## 🔧 Installation & Setup
 
 ### **Prerequisites**
+
 - Node.js (v16 or higher)
 - npm or yarn
 
 ### **Installation**
+
 ```bash
 # Clone the repository
 git clone <repository-url>
@@ -161,6 +176,7 @@ npm run dev
 ```
 
 ### **Environment Variables**
+
 ```env
 # Server Configuration
 PORT=3000
@@ -192,6 +208,7 @@ LOG_FORMAT=combined
 ## 🏃‍♂️ Usage Examples
 
 ### **Creating a Room**
+
 ```javascript
 const response = await fetch('/api/rooms', {
   method: 'POST',
@@ -204,6 +221,7 @@ console.log('Room created:', data.room.code);
 ```
 
 ### **Adding a YouTube Song**
+
 ```javascript
 const response = await fetch(`/api/queue/${roomCode}/add`, {
   method: 'POST',
@@ -218,6 +236,7 @@ const response = await fetch(`/api/queue/${roomCode}/add`, {
 ```
 
 ### **Adding a Spotify Playlist**
+
 ```javascript
 const response = await fetch(`/api/queue/${roomCode}/add`, {
   method: 'POST',
@@ -234,11 +253,13 @@ const response = await fetch(`/api/queue/${roomCode}/add`, {
 ## 📡 Socket.IO Events
 
 ### **Client → Server**
+
 - `joinRoom(roomCode, userData)`
 - `leaveRoom(roomCode)`
 - `playbackControl(action, data)`
 
 ### **Server → Client**
+
 - `queueUpdated(queueData)`
 - `roomWorkingStateChanged(workingState)`
 - `queueItemProgress(progressData)`
@@ -248,11 +269,13 @@ const response = await fetch(`/api/queue/${roomCode}/add`, {
 ## 🛠️ Development
 
 ### **Code Style**
+
 - ESLint configuration for consistent code style
 - Prettier for code formatting
 - Clear naming conventions
 
 ### **Testing**
+
 ```bash
 # Run tests
 npm test
@@ -265,6 +288,7 @@ npm run test:integration
 ```
 
 ### **Debugging**
+
 ```bash
 # Start with debugging
 npm run debug
@@ -307,6 +331,7 @@ throw new ValidationError('Invalid room code', 'roomCode');
 ## 🚀 Deployment
 
 ### **Production Build**
+
 ```bash
 # Install production dependencies
 npm ci --only=production
@@ -316,6 +341,7 @@ NODE_ENV=production npm start
 ```
 
 ### **Docker Support** (Ready for implementation)
+
 ```dockerfile
 FROM node:16-alpine
 WORKDIR /app

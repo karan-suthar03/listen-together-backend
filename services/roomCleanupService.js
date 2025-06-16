@@ -12,7 +12,7 @@ let roomDeletionCallback = null;
  * @param {Function} callback - Function to call when room is deleted (roomCode) => void
  */
 function setRoomDeletionCallback(callback) {
-  roomDeletionCallback = callback;
+    roomDeletionCallback = callback;
 }
 
 /**
@@ -20,38 +20,38 @@ function setRoomDeletionCallback(callback) {
  * @param {string} roomCode - The room code to track
  */
 function startEmptyRoomTimer(roomCode) {
-  // Clear existing timer if any
-  if (emptyRoomTimeouts.has(roomCode)) {
-    clearTimeout(emptyRoomTimeouts.get(roomCode));
-  }
-
-  console.log(`🗑️ Starting cleanup timer for empty room: ${roomCode} (3 minutes)`);
-    const timeoutId = setTimeout(() => {
-    const room = roomService.getRoom(roomCode);
-    
-    // Double-check that room is still empty before deleting
-    if (room && room.members.length === 0) {
-      console.log(`🗑️ Deleting empty room after timeout: ${roomCode}`);
-      roomService.deleteRoom(roomCode);
-      emptyRoomTimeouts.delete(roomCode);
-      
-      // Call the deletion callback if set
-      if (roomDeletionCallback) {
-        roomDeletionCallback(roomCode, room);
-      }
-      
-      // Notify about room deletion (optional - for monitoring)
-      console.log(`✅ Room ${roomCode} has been automatically deleted due to inactivity`);
-    } else if (room) {
-      console.log(`🗑️ Room ${roomCode} is no longer empty, canceling deletion`);
-      emptyRoomTimeouts.delete(roomCode);
-    } else {
-      // Room already deleted
-      emptyRoomTimeouts.delete(roomCode);
+    // Clear existing timer if any
+    if (emptyRoomTimeouts.has(roomCode)) {
+        clearTimeout(emptyRoomTimeouts.get(roomCode));
     }
-  }, EMPTY_ROOM_TIMEOUT);
-  
-  emptyRoomTimeouts.set(roomCode, timeoutId);
+
+    console.log(`🗑️ Starting cleanup timer for empty room: ${roomCode} (3 minutes)`);
+    const timeoutId = setTimeout(() => {
+        const room = roomService.getRoom(roomCode);
+
+        // Double-check that room is still empty before deleting
+        if (room && room.members.length === 0) {
+            console.log(`🗑️ Deleting empty room after timeout: ${roomCode}`);
+            roomService.deleteRoom(roomCode);
+            emptyRoomTimeouts.delete(roomCode);
+
+            // Call the deletion callback if set
+            if (roomDeletionCallback) {
+                roomDeletionCallback(roomCode, room);
+            }
+
+            // Notify about room deletion (optional - for monitoring)
+            console.log(`✅ Room ${roomCode} has been automatically deleted due to inactivity`);
+        } else if (room) {
+            console.log(`🗑️ Room ${roomCode} is no longer empty, canceling deletion`);
+            emptyRoomTimeouts.delete(roomCode);
+        } else {
+            // Room already deleted
+            emptyRoomTimeouts.delete(roomCode);
+        }
+    }, EMPTY_ROOM_TIMEOUT);
+
+    emptyRoomTimeouts.set(roomCode, timeoutId);
 }
 
 /**
@@ -59,11 +59,11 @@ function startEmptyRoomTimer(roomCode) {
  * @param {string} roomCode - The room code to stop tracking
  */
 function cancelEmptyRoomTimer(roomCode) {
-  if (emptyRoomTimeouts.has(roomCode)) {
-    console.log(`🗑️ Canceling cleanup timer for room: ${roomCode} (members joined)`);
-    clearTimeout(emptyRoomTimeouts.get(roomCode));
-    emptyRoomTimeouts.delete(roomCode);
-  }
+    if (emptyRoomTimeouts.has(roomCode)) {
+        console.log(`🗑️ Canceling cleanup timer for room: ${roomCode} (members joined)`);
+        clearTimeout(emptyRoomTimeouts.get(roomCode));
+        emptyRoomTimeouts.delete(roomCode);
+    }
 }
 
 /**
@@ -71,21 +71,21 @@ function cancelEmptyRoomTimer(roomCode) {
  * @param {string} roomCode - The room code to check
  */
 function handleRoomMembershipChange(roomCode) {
-  const room = roomService.getRoom(roomCode);
-  
-  if (!room) {
-    // Room doesn't exist, cancel any timers
-    cancelEmptyRoomTimer(roomCode);
-    return;
-  }
-  
-  if (room.members.length === 0) {
-    // Room is empty, start cleanup timer
-    startEmptyRoomTimer(roomCode);
-  } else {
-    // Room has members, cancel cleanup timer
-    cancelEmptyRoomTimer(roomCode);
-  }
+    const room = roomService.getRoom(roomCode);
+
+    if (!room) {
+        // Room doesn't exist, cancel any timers
+        cancelEmptyRoomTimer(roomCode);
+        return;
+    }
+
+    if (room.members.length === 0) {
+        // Room is empty, start cleanup timer
+        startEmptyRoomTimer(roomCode);
+    } else {
+        // Room has members, cancel cleanup timer
+        cancelEmptyRoomTimer(roomCode);
+    }
 }
 
 /**
@@ -93,43 +93,43 @@ function handleRoomMembershipChange(roomCode) {
  * @returns {Object} Status information about cleanup timers
  */
 function getCleanupStatus() {
-  const activeTimers = Array.from(emptyRoomTimeouts.keys());
-  const rooms = roomService.rooms;
-  
-  // Additional safety check - find any empty rooms not being tracked
-  const emptyRoomsNotTracked = [];
-  rooms.forEach((room, roomCode) => {
-    if (room.members.length === 0 && !emptyRoomTimeouts.has(roomCode)) {
-      emptyRoomsNotTracked.push(roomCode);
-    }
-  });
-  
-  return {
-    emptyRoomsBeingTracked: activeTimers.length,
-    roomCodes: activeTimers,
-    timeoutDuration: EMPTY_ROOM_TIMEOUT,
-    emptyRoomsNotTracked: emptyRoomsNotTracked,
-    totalRooms: rooms.size
-  };
+    const activeTimers = Array.from(emptyRoomTimeouts.keys());
+    const rooms = roomService.rooms;
+
+    // Additional safety check - find any empty rooms not being tracked
+    const emptyRoomsNotTracked = [];
+    rooms.forEach((room, roomCode) => {
+        if (room.members.length === 0 && !emptyRoomTimeouts.has(roomCode)) {
+            emptyRoomsNotTracked.push(roomCode);
+        }
+    });
+
+    return {
+        emptyRoomsBeingTracked: activeTimers.length,
+        roomCodes: activeTimers,
+        timeoutDuration: EMPTY_ROOM_TIMEOUT,
+        emptyRoomsNotTracked: emptyRoomsNotTracked,
+        totalRooms: rooms.size
+    };
 }
 
 /**
  * Force cleanup all timers (useful for server shutdown)
  */
 function clearAllTimers() {
-  console.log(`🗑️ Clearing ${emptyRoomTimeouts.size} room cleanup timers`);
-  emptyRoomTimeouts.forEach((timeoutId) => {
-    clearTimeout(timeoutId);
-  });
-  emptyRoomTimeouts.clear();
+    console.log(`🗑️ Clearing ${emptyRoomTimeouts.size} room cleanup timers`);
+    emptyRoomTimeouts.forEach((timeoutId) => {
+        clearTimeout(timeoutId);
+    });
+    emptyRoomTimeouts.clear();
 }
 
 module.exports = {
-  handleRoomMembershipChange,
-  startEmptyRoomTimer,
-  cancelEmptyRoomTimer,
-  getCleanupStatus,
-  clearAllTimers,
-  setRoomDeletionCallback,
-  EMPTY_ROOM_TIMEOUT
+    handleRoomMembershipChange,
+    startEmptyRoomTimer,
+    cancelEmptyRoomTimer,
+    getCleanupStatus,
+    clearAllTimers,
+    setRoomDeletionCallback,
+    EMPTY_ROOM_TIMEOUT
 };
