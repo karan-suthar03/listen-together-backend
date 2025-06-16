@@ -1,6 +1,5 @@
 const crypto = require('crypto');
 const musicService = require('./musicService');
-const downloadManager = require('./downloadManager');
 const rooms = new Map();
 
 function generateRoomCode() {
@@ -37,15 +36,7 @@ exports.createRoom = async (hostName = 'Host') => {
     isWorking: false,
     workingMessage: '',
     createdAt: Date.now()
-  };
-  rooms.set(code, room);
-  downloadManager.initializeRoom(code);
-  
-  setTimeout(() => {
-    downloadManager.checkAllExistingFiles(code).catch(error => {
-      console.error('Error checking existing files on room creation:', error);
-    });
-  }, 1000);
+  };  rooms.set(code, room);
   
   return { room, user };
 };
@@ -70,17 +61,13 @@ exports.rooms = rooms;
 
 exports.updatePlayback = (roomCode, action, data = {}) => {
   const room = rooms.get(roomCode);
-  if (!room) return null;
-  
+  if (!room) return null;  
   const previousTrackIndex = room.playback.currentTrackIndex;
   
   room.playback = musicService.updatePlaybackState(room.playback, action, data);
-  
-  if (room.playback.currentTrackIndex !== previousTrackIndex) {
-    console.log(`🎵 Track changed from ${previousTrackIndex} to ${room.playback.currentTrackIndex} in room ${roomCode}`);
-    downloadManager.onTrackChange(roomCode, room.playback.currentTrackIndex).catch(error => {
-      console.error('Error notifying download manager of track change:', error);
-    });
+    if (room.playback.currentTrackIndex !== previousTrackIndex) {
+    // Note: Download manager track change notification removed to avoid circular dependency
+    // Downloads are handled when songs are added to queue
   }
   
   return room;
@@ -168,12 +155,6 @@ exports.addToQueue = (roomCode, songData, addedBy) => {
   
   const queueItem = musicService.addToQueue(room.playback, songData, addedBy);
   
-  downloadManager.initializeRoom(roomCode);
-  
-  downloadManager.processDownloads(roomCode).catch(error => {
-    console.error('Error processing downloads after adding to queue:', error);
-  });
-  
   return { room, queueItem };
 };
 
@@ -256,9 +237,11 @@ exports.deleteRoom = async (roomCode) => {
   const room = rooms.get(roomCode);
   if (!room) return null;
   
-  downloadManager.cleanupRoom(roomCode);
+  // Note: Download manager cleanup removed to avoid circular dependency
+  // Cleanup is handled elsewhere
   
-  rooms.delete(roomCode);  return room;
+  rooms.delete(roomCode);
+  return room;
 };
 
 exports.getRoom = (roomCode) => {
@@ -276,12 +259,13 @@ exports.getRoom = (roomCode) => {
       name: member.name,
       isHost: member.isHost,
       joinedAt: member.joinedAt
-    })),
-    playback: {
+    })),    playback: {
       isPlaying: room.playback.isPlaying,
       currentTime: room.playback.currentTime,
       currentTrack: room.playback.queue[room.playback.currentTrackIndex] || null,
-      queueLength: room.playback.queue.length
+      queueLength: room.playback.queue.length,
+      queue: room.playback.queue,  // ← Include the actual queue array
+      currentTrackIndex: room.playback.currentTrackIndex
     }
   };
 };

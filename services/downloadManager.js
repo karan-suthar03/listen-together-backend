@@ -16,18 +16,24 @@ class DownloadManager extends EventEmitter {  constructor() {
         lastCurrentTrackIndex: -1
       });
     }
-  }
-  async addToDownloadQueue(roomCode, videoId, youtubeUrl, queueItemId) {
+  }  async addToDownloadQueue(roomCode, videoId, youtubeUrl, queueItemId) {
+    console.log(`🔄 Adding ${videoId} to download queue for room ${roomCode}`);
     this.initializeRoom(roomCode);
     const roomDownloadState = this.roomDownloads.get(roomCode);
 
-    await this.checkAndUpdateExistingFile(roomCode, videoId, queueItemId);
+    const existingFileFound = await this.checkAndUpdateExistingFile(roomCode, videoId, queueItemId);
+    
+    if (existingFileFound) {
+      console.log(`✅ Existing file found for ${videoId}, skipping download`);
+      return;
+    }
 
     if (roomDownloadState.currentlyDownloading.has(videoId)) {
       console.log(`🔄 Song ${videoId} already downloading`);
       return;
     }
 
+    console.log(`🚀 Processing downloads for room ${roomCode}...`);
     await this.processDownloads(roomCode);
   }
 
@@ -76,16 +82,31 @@ class DownloadManager extends EventEmitter {  constructor() {
         }
       }
     }
-  }
-  async processDownloads(roomCode) {
+  }  async processDownloads(roomCode) {
+    console.log(`🔄 processDownloads called for room: ${roomCode}`);
+    
     const room = roomService.getRoom(roomCode);
-    if (!room || !room.playback || !room.playback.queue) {
+    if (!room) {
+      console.log(`❌ Room ${roomCode} not found`);
       return;
     }
+    
+    if (!room.playback) {
+      console.log(`❌ Room ${roomCode} has no playback object`);
+      console.log(`🔍 Room structure:`, JSON.stringify(room, null, 2));
+      return;
+    }    if (!room.playback.queue || !Array.isArray(room.playback.queue)) {
+      console.log(`❌ Room ${roomCode} has no valid queue (type: ${typeof room.playback.queue})`);
+      return;
+    }
+    
+    console.log(`✅ Room ${roomCode} found with queue length: ${room.playback.queue.length}`);
 
     const roomDownloadState = this.roomDownloads.get(roomCode);
     if (!roomDownloadState) {
-      return;
+      console.log(`❌ Room download state for ${roomCode} not found, reinitializing...`);
+      this.initializeRoom(roomCode);
+      return this.processDownloads(roomCode);
     }
 
     const currentTrackIndex = room.playback.currentTrackIndex;
@@ -94,7 +115,8 @@ class DownloadManager extends EventEmitter {  constructor() {
 
     await this.checkAllExistingFiles(roomCode);
 
-    const songsToDownload = this.getSongsToDownload(queue, currentTrackIndex);    console.log(`📊 Songs that should be downloaded:`, songsToDownload.map(s => ({ title: s.title, videoId: s.videoId, status: s.downloadStatus })));
+    const songsToDownload = this.getSongsToDownload(queue, currentTrackIndex);    
+    console.log(`📊 Songs that should be downloaded:`, songsToDownload.map(s => ({ title: s.title, videoId: s.videoId, status: s.downloadStatus })));
     console.log(`📊 Currently downloading (${roomDownloadState.currentlyDownloading.size}/${this.MAX_CONCURRENT_DOWNLOADS}):`, Array.from(roomDownloadState.currentlyDownloading));for (const song of songsToDownload) {
       // Check if we've reached the maximum concurrent downloads
       if (roomDownloadState.currentlyDownloading.size >= this.MAX_CONCURRENT_DOWNLOADS) {

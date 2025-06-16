@@ -28,9 +28,7 @@ class ParticipantController {
     }
     
     roomCleanupService.handleRoomMembershipChange(roomCode);
-    
-    if (req.io) {
-      console.log('🚪 Emitting socket events for HTTP user join:', { roomCode, user });
+      if (req.io) {
       req.io.to(roomCode).emit('room-updated', room);
       req.io.to(roomCode).emit('user-joined', { user, room });
     }
@@ -51,9 +49,7 @@ class ParticipantController {
     }
     
     roomCleanupService.handleRoomMembershipChange(roomCode);
-    
-    if (req.io) {
-      console.log('🚪 Emitting socket events for HTTP user leave:', { roomCode, userId });
+      if (req.io) {
       req.io.to(roomCode).emit('room-updated', result.room);
       req.io.to(roomCode).emit('user-left', { user: result.removedUser, room: result.room });
     }
@@ -74,9 +70,7 @@ class ParticipantController {
     }
     
     const updatedParticipant = room.members.find(m => m.id === userId);
-    
-    if (req.io) {
-      console.log('🚪 Emitting socket events for HTTP participant update:', { roomCode, userId, updateData });
+      if (req.io) {
       req.io.to(roomCode).emit('room-updated', room);
       req.io.to(roomCode).emit('participant-updated', { user: updatedParticipant, room });
     }

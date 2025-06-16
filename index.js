@@ -32,14 +32,11 @@ registerRoomSocket(io);
 registerMusicSocket(io);
 
 roomCleanupService.setRoomDeletionCallback((roomCode, deletedRoom) => {
-  console.log(`🗑️ Notifying clients about auto-deleted room: ${roomCode}`);
-  
   io.to(roomCode).emit('room-deleted', {
     roomCode,
     reason: 'inactivity',
     message: 'Room was automatically deleted due to inactivity'
   });
-  
   const sockets = io.sockets.adapter.rooms.get(roomCode);
   if (sockets) {
     sockets.forEach(socketId => {
@@ -71,8 +68,6 @@ setInterval(() => {
 youtubeService.on('downloadProgress', (data) => {
   const { roomCode, queueItemId, progress, status } = data;
   
-  console.log('Download progress event:', { roomCode, queueItemId, progress, status });
-  
   roomService.updateQueueItemStatus(roomCode, queueItemId, status, progress);
   
   io.to(roomCode).emit('queueItemProgress', {
@@ -82,25 +77,17 @@ youtubeService.on('downloadProgress', (data) => {
   });
 });
 
-youtubeService.on('downloadComplete', (data) => {
-  console.log('Download complete event received:', JSON.stringify(data, null, 2));
-  
-  const { roomCode, queueItemId, filename, publicUrl } = data;
+youtubeService.on('downloadComplete', (data) => {  const { roomCode, queueItemId, filename, publicUrl } = data;
   const mp3Url = publicUrl || `/api/music/stream/${filename}`;
   
-  console.log('Processing download complete:', { roomCode, queueItemId, filename, mp3Url, publicUrl });
-  
-  const result = roomService.updateQueueItemStatus(roomCode, queueItemId, 'completed', 100, mp3Url);  
-  console.log('Queue item updated:', result ? 'success' : 'failed');
+  const result = roomService.updateQueueItemStatus(roomCode, queueItemId, 'completed', 100, mp3Url);
   
   const room = roomService.getRoom(roomCode);
-  console.log('Room lookup result:', room ? 'found' : 'not found', 'for roomCode:', roomCode);
   
   if (room && room.playback && room.playback.queue && room.playback.queue.length > 0 && room.playback.currentTrackIndex === -1) {
     const firstCompletedIndex = room.playback.queue.findIndex(track => track.downloadStatus === 'completed');
     if (firstCompletedIndex >= 0) {
       roomService.updatePlayback(roomCode, 'playTrack', { trackIndex: firstCompletedIndex });
-      console.log(`Auto-playing first completed track at index ${firstCompletedIndex}`);
     }
   }
   
@@ -122,8 +109,6 @@ youtubeService.on('downloadComplete', (data) => {
 youtubeService.on('downloadError', (data) => {
   const { roomCode, queueItemId, error } = data;
   
-  console.log('Download error event:', { roomCode, queueItemId, error });
-  
   roomService.updateQueueItemStatus(roomCode, queueItemId, 'error', 0);
   
   io.to(roomCode).emit('queueItemError', {
@@ -135,8 +120,6 @@ youtubeService.on('downloadError', (data) => {
 
 downloadManager.on('fileFoundPreDownloaded', (data) => {
   const { roomCode, queueItemId, videoId, mp3Url, status } = data;
-  
-  console.log('Pre-downloaded file found:', { roomCode, queueItemId, videoId, status });
   
   io.to(roomCode).emit('queueItemComplete', {
     queueItemId,

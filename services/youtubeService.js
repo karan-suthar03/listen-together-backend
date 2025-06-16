@@ -28,24 +28,16 @@ class YouTubeService extends EventEmitter {
       if (!videoId) {
         throw new Error('Invalid YouTube URL or could not extract video ID');
       }
-      
-      console.log(`🎵 Getting track data for video ID: ${videoId} (fast API)`);
-      
-      // Try the fast YouTube API first
+        // Try the fast YouTube API first
       try {
         const trackData = await getTrackData(videoId);
         
         if (trackData.error) {
-          console.warn(`🎵 YouTube API returned error: ${trackData.error}, falling back to ytdl`);
+          console.warn(`YouTube API returned error: ${trackData.error}, falling back to ytdl`);
           throw new Error(`YouTube API error: ${trackData.error}`);
         }
         
-        console.log(`🎵 Fast API success:`, { 
-          title: trackData.title, 
-          artist: trackData.artist,
-          duration: trackData.duration 
-        });
-          return {
+        return {
           title: trackData.title || 'Unknown Title',
           artist: trackData.artist || 'Unknown Artist',
           duration: Math.floor((trackData.duration || 0) / 1000),
@@ -59,9 +51,7 @@ class YouTubeService extends EventEmitter {
       } catch (apiError) {
         console.warn(`🎵 Fast API failed: ${apiError.message}, falling back to ytdl.getInfo()`);
         
-        // Fallback to ytdl.getInfo()
-        console.log(`🎵 Using ytdl.getInfo() fallback for video ID: ${videoId}`);
-        const info = await ytdl.getInfo(url);
+        // Fallback to ytdl.getInfo()        const info = await ytdl.getInfo(url);
         const thumbnails = info.videoDetails.thumbnails;
         let bestThumbnail;
         
@@ -75,11 +65,6 @@ class YouTubeService extends EventEmitter {
         if (!bestThumbnail) {
           bestThumbnail = thumbnails[thumbnails.length - 1];
         }
-        
-        console.log(`🎵 ytdl.getInfo() fallback success:`, { 
-          title: info.videoDetails.title,
-          artist: info.videoDetails.author.name
-        });
         
         return {
           title: info.videoDetails.title,
@@ -97,15 +82,13 @@ class YouTubeService extends EventEmitter {
       console.error('Error getting video info:', error);
       throw new Error('Failed to get video information');
     }
-  }
-  async downloadVideo(videoId, url, roomCode, queueItemId) {
+  }  async downloadVideo(videoId, url, roomCode, queueItemId) {
     const filename = `${videoId}.mp3`;
     const filePath = path.join(this.downloadsDir, filename);
-    
+
     // Check if file already exists in Supabase
     const fileExistsInSupabase = await supabaseService.fileExists(filename);
     if (fileExistsInSupabase) {
-      console.log(`File ${filename} already exists in Supabase, getting URL`);
       const publicUrl = supabaseService.getPublicUrl(filename);
       
       this.emit('downloadProgress', {
@@ -120,16 +103,15 @@ class YouTubeService extends EventEmitter {
         videoId,
         roomCode,
         queueItemId,
-        filePath: null, // No local path
+        filePath: null,
         filename,
-        publicUrl, // Add Supabase public URL
+        publicUrl,
         status: 'completed'
       });
       return { filename, publicUrl };
     }
 
     if (this.downloadQueue.has(videoId)) {
-      console.log(`Download for ${videoId} already in progress`);
       return this.downloadQueue.get(videoId);
     }
 
@@ -139,11 +121,16 @@ class YouTubeService extends EventEmitter {
       let downloadedSize = 0;
       let lastProgressEmit = 0;
 
-      try {
-        const stream = ytdl(url, { 
-          filter: 'audioonly',
-          quality: 'highestaudio'
-        });
+      try {        let stream;
+        try {
+          stream = ytdl(url, { 
+            filter: 'audioonly',
+            quality: 'highestaudio'
+          });
+        } catch (ytdlError) {
+          console.error(`Failed to create ytdl stream:`, ytdlError);
+          throw ytdlError;
+        }
 
         const writeStream = fs.createWriteStream(filePath);
         
@@ -166,8 +153,7 @@ class YouTubeService extends EventEmitter {
           downloadedSize += chunk.length;
           const progress = totalSize > 0 ? Math.round((downloadedSize / totalSize) * 100) : 0;
           const now = Date.now();
-          
-          // Emit progress every 2 seconds
+            // Emit progress every 2 seconds
           if (now - lastProgressEmit >= 2000) {
             lastProgressEmit = now;
             this.emit('downloadProgress', {
@@ -183,7 +169,7 @@ class YouTubeService extends EventEmitter {
         });
 
         stream.on('error', (error) => {
-          console.error('Download stream error:', error);
+          console.error(`❌ Download stream error for ${videoId}:`, error);
           
           if (fs.existsSync(filePath)) {
             fs.unlinkSync(filePath);
@@ -199,14 +185,10 @@ class YouTubeService extends EventEmitter {
           });
           
           reject(error);
-        });
-
-        stream.pipe(writeStream);
+        });        stream.pipe(writeStream);
 
         writeStream.on('finish', async () => {
           const elapsed = (Date.now() - startTime) / 1000;
-          console.log(`Downloaded ${filename} in ${elapsed} seconds, now uploading to Supabase...`);
-          
           try {
             // Emit progress update for upload phase
             this.emit('downloadProgress', {
@@ -225,11 +207,7 @@ class YouTubeService extends EventEmitter {
               roomCode,
               queueItemId,
               uploadedAt: new Date().toISOString()
-            });
-
-            if (uploadResult.success) {
-              console.log(`Successfully uploaded ${filename} to Supabase`);
-              
+            });            if (uploadResult.success) {
               // Clean up local file
               await supabaseService.cleanupLocalFile(filePath);
               

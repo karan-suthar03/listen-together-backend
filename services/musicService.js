@@ -24,9 +24,8 @@ class MusicService {
   }
   async getMetadata() {
     return this.metadata;
-  }  
-  async initializePlayback(roomCode) {
-    return {
+  }    async initializePlayback(roomCode) {
+    const playbackState = {
       isPlaying: false,
       currentTime: 0,
       startedAt: null,
@@ -35,6 +34,9 @@ class MusicService {
       queue: [], 
       currentTrackIndex: -1 
     };
+    
+    console.log(`🎵 Initialized playback for room ${roomCode}:`, playbackState);
+    return playbackState;
   }
 
   getCurrentPosition(playbackState) {
@@ -100,6 +102,15 @@ class MusicService {
 
     return playbackState;
   }  addToQueue(playbackState, songData, addedBy) {
+    // Ensure queue exists and is an array
+    if (!playbackState.queue || !Array.isArray(playbackState.queue)) {
+      console.log(`🔧 Fixing missing or invalid queue in playbackState`);
+      playbackState.queue = [];
+    }
+    
+    console.log(`🎵 Adding song to queue. Current queue length: ${playbackState.queue.length}`);
+    console.log(`🎵 Song data:`, { title: songData.title, id: songData.id, videoId: songData.videoId });
+    
     // Check if queue is at maximum capacity
     if (playbackState.queue.length >= config.queue.maxSongs) {
       throw new Error(`Queue is full. Maximum ${config.queue.maxSongs} songs allowed.`);
@@ -117,10 +128,12 @@ class MusicService {
       addedBy: addedBy,
       addedAt: new Date(),
       downloadStatus: songData.downloadStatus || 'completed',
-      downloadProgress: songData.downloadProgress || 100
-    };
+      downloadProgress: songData.downloadProgress || 100    };
 
     playbackState.queue.push(queueItem);
+    console.log(`✅ Song added to queue. New queue length: ${playbackState.queue.length}`);
+    console.log(`🎵 Queue item created:`, queueItem);
+    
     return queueItem;
   }
   removeFromQueue(playbackState, index) {

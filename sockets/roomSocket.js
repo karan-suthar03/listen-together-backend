@@ -4,10 +4,8 @@ const disconnectionService = require('../services/disconnectionService');
 
 const socketUserRoom = new Map();
 
-function registerRoomSocket(io) {
-  io.on('connection', (socket) => {
-    console.log('Socket connected:', socket.id);    socket.on('join-room', async ({ roomCode, user }) => {
-      console.log('🚪 User joining room via socket:', { roomCode, user });
+function registerRoomSocket(io) {  io.on('connection', (socket) => {
+    socket.on('join-room', async ({ roomCode, user }) => {
       socket.join(roomCode);
       socketUserRoom.set(socket.id, { user, roomCode });
       
@@ -15,12 +13,6 @@ function registerRoomSocket(io) {
       
       const room = roomService.addParticipant(roomCode, user);
       if (room) {
-        console.log('🚪 Room after adding participant:', { 
-          code: room.code, 
-          memberCount: room.members.length,
-          members: room.members.map(m => ({ id: m.id, name: m.name, connected: m.isConnected }))
-        });
-        
         roomCleanupService.handleRoomMembershipChange(roomCode);
         
         io.to(roomCode).emit('room-updated', room);
@@ -30,12 +22,8 @@ function registerRoomSocket(io) {
         if (syncData) {
           socket.emit('music-state', syncData);
         }
-        
-        console.log(`User joined via socket:`, user);
-      } else {
-        console.log('🚪 Failed to add user to room:', { roomCode, user });
       }
-    });      socket.on('leave-room', ({ roomCode }) => {
+    });socket.on('leave-room', ({ roomCode }) => {
       const info = socketUserRoom.get(socket.id);
       if (info && info.roomCode === roomCode) {
         socket.leave(roomCode);
@@ -54,12 +42,10 @@ function registerRoomSocket(io) {
         socketUserRoom.delete(socket.id);
       }
     });
-    
-    socket.on('get-participants', ({ roomCode }) => {
+      socket.on('get-participants', ({ roomCode }) => {
       const participants = roomService.getParticipants(roomCode);
       if (participants) {
         socket.emit('participant-list', participants);
-        console.log(`Sent participant list for room ${roomCode}:`, participants.length, 'participants');
       } else {
         socket.emit('error', { message: 'Room not found' });
       }
