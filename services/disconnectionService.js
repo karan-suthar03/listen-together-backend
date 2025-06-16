@@ -22,9 +22,7 @@ function handleUserDisconnect(roomCode, userId, socketId, io) {
 
     if (disconnectedUsers.has(userId)) {
         clearTimeout(disconnectedUsers.get(userId).timeoutId);
-    }
-
-    const timeoutId = setTimeout(() => {
+    }    const timeoutId = setTimeout(() => {
         console.log(`⏰ Grace period expired for user ${userId}, removing from room ${roomCode}`);
 
         const result = roomService.removeParticipant(roomCode, userId);
@@ -37,6 +35,16 @@ function handleUserDisconnect(roomCode, userId, socketId, io) {
                 room: result.room,
                 reason: 'timeout'
             });
+
+            // Notify if a new host was assigned
+            if (result.newHost) {
+                io.to(roomCode).emit('host-changed', {
+                    newHost: result.newHost,
+                    previousHost: result.removedUser,
+                    reason: 'host-left',
+                    room: result.room
+                });
+            }
 
             console.log(`🚪 User ${userId} finally removed from room ${roomCode} after grace period`);
         }
@@ -95,6 +103,16 @@ function forceRemoveUser(roomCode, userId, io) {
             room: result.room,
             reason: 'explicit'
         });
+
+        // Notify if a new host was assigned
+        if (result.newHost) {
+            io.to(roomCode).emit('host-changed', {
+                newHost: result.newHost,
+                previousHost: result.removedUser,
+                reason: 'host-left',
+                room: result.room
+            });
+        }
     }
 
     return result;
