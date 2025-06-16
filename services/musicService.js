@@ -202,23 +202,25 @@ class MusicService {
             queue: playbackState.queue,
             currentTrackIndex: playbackState.currentTrackIndex
         };
-    }
-
-    async getSyncData(playbackState) {
+    }    async getSyncData(playbackState) {
         let currentTrack = null;
         if (playbackState.currentTrackIndex >= 0 && playbackState.queue.length > playbackState.currentTrackIndex) {
             currentTrack = playbackState.queue[playbackState.currentTrackIndex];
         }
 
-        return {
+        const now = Date.now();
+        const syncData = {
             isPlaying: playbackState.isPlaying,
             currentTime: this.getCurrentPosition(playbackState),
-            lastUpdated: playbackState.lastUpdated,
+            lastUpdated: now, // Include server timestamp for client sync
+            serverTimestamp: now, // Explicit server timestamp
             queue: playbackState.queue,
             currentTrackIndex: playbackState.currentTrackIndex,
             currentTrack: currentTrack,
             duration: currentTrack ? currentTrack.duration : 0
         };
+
+        return syncData;
     }
 
     nextTrack(playbackState) {

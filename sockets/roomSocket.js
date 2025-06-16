@@ -29,8 +29,7 @@ function registerRoomSocket(io) {
                         reason: 'first-user-in-empty-room',
                         room
                     });
-                }
-
+                }                // Always send sync data to the joining user for immediate synchronization
                 const syncData = await roomService.getPlaybackSync(roomCode);
                 if (syncData) {
                     socket.emit('music-state', syncData);

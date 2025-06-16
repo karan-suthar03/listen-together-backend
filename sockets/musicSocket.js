@@ -39,12 +39,12 @@ function registerMusicSocket(io) {
                 const syncData = await roomService.getPlaybackSync(roomCode);
                 io.to(roomCode).emit('music-state', syncData);
             }
-        });
-
-        socket.on('sync-request', async ({roomCode}) => {
+        });        socket.on('sync-request', async ({roomCode}) => {
             const syncData = await roomService.getPlaybackSync(roomCode);
             if (syncData) {
                 socket.emit('music-state', syncData);
+            } else {
+                socket.emit('error', {message: 'Room not found or no music data'});
             }
         });
 
