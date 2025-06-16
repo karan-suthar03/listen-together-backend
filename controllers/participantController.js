@@ -27,10 +27,8 @@ class ParticipantController {
       throw new Error('Room not found');
     }
     
-    // Handle room membership change for cleanup
     roomCleanupService.handleRoomMembershipChange(roomCode);
     
-    // Emit socket events to notify other users about the new participant
     if (req.io) {
       console.log('🚪 Emitting socket events for HTTP user join:', { roomCode, user });
       req.io.to(roomCode).emit('room-updated', room);
@@ -52,10 +50,8 @@ class ParticipantController {
       throw new Error('Room not found or participant not found');
     }
     
-    // Handle room membership change for cleanup
     roomCleanupService.handleRoomMembershipChange(roomCode);
     
-    // Emit socket events to notify other users about the participant leaving
     if (req.io) {
       console.log('🚪 Emitting socket events for HTTP user leave:', { roomCode, userId });
       req.io.to(roomCode).emit('room-updated', result.room);
@@ -67,7 +63,6 @@ class ParticipantController {
       participantCount: result.room.members.length
     }, 'Participant removed successfully');
   }
-
   async updateParticipant(req, res) {
     const { roomCode, userId } = req.params;
     const { updateData } = req.body;
@@ -80,7 +75,6 @@ class ParticipantController {
     
     const updatedParticipant = room.members.find(m => m.id === userId);
     
-    // Emit socket events to notify other users about the participant update
     if (req.io) {
       console.log('🚪 Emitting socket events for HTTP participant update:', { roomCode, userId, updateData });
       req.io.to(roomCode).emit('room-updated', room);
@@ -91,6 +85,27 @@ class ParticipantController {
       participant: updatedParticipant,
       room
     }, 'Participant updated successfully');
+  }
+
+  async getUserInfo(req, res) {
+    const { roomCode, userId } = req.params;
+    
+    const room = roomService.getRoom(roomCode);
+    if (!room) {
+      throw new Error('Room not found');
+    }
+    
+    const user = room.members.find(m => m.id === userId);
+    if (!user) {
+      throw new Error('User not found in room');
+    }
+    
+    return createSuccessResponse({
+      id: user.id,
+      name: user.name,
+      isHost: user.id === room.hostId,
+      joinedAt: user.joinedAt
+    }, 'User info retrieved successfully');
   }
 }
 

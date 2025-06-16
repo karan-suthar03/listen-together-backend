@@ -7,6 +7,7 @@ const registerMusicSocket = require('./sockets/musicSocket');
 const youtubeService = require('./services/youtubeService');
 const roomService = require('./services/roomService');
 const roomCleanupService = require('./services/roomCleanupService');
+const disconnectionService = require('./services/disconnectionService');
 const supabaseService = require('./services/supabaseService');
 const downloadManager = require('./services/downloadManager');
 
@@ -14,7 +15,6 @@ const port = config.server.port;
 const io = new Server({
   cors: {
     origin: (origin, callback) => {
-      // Allow all origins for ngrok testing
       callback(null, true);
     },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -31,18 +31,15 @@ io.attach(server);
 registerRoomSocket(io);
 registerMusicSocket(io);
 
-// Set up room cleanup callback to notify clients when rooms are auto-deleted
 roomCleanupService.setRoomDeletionCallback((roomCode, deletedRoom) => {
   console.log(`🗑️ Notifying clients about auto-deleted room: ${roomCode}`);
   
-  // Emit to all clients in the room about the deletion
   io.to(roomCode).emit('room-deleted', {
     roomCode,
     reason: 'inactivity',
     message: 'Room was automatically deleted due to inactivity'
   });
   
-  // Force disconnect all sockets from this room
   const sockets = io.sockets.adapter.rooms.get(roomCode);
   if (sockets) {
     sockets.forEach(socketId => {
@@ -58,21 +55,18 @@ roomCleanupService.setRoomDeletionCallback((roomCode, deletedRoom) => {
   }
 });
 
-// Periodic cleanup check (every 5 minutes) to ensure consistency
 setInterval(() => {
   const rooms = roomService.rooms;
   const cleanupStatus = roomCleanupService.getCleanupStatus();
   
   console.log(`🔄 Periodic cleanup check - ${rooms.size} rooms, ${cleanupStatus.emptyRoomsBeingTracked} being tracked for cleanup`);
   
-  // Check for any rooms that might have been missed
   rooms.forEach((room, roomCode) => {
     if (room.members.length === 0) {
-      // Ensure empty rooms are being tracked
       roomCleanupService.handleRoomMembershipChange(roomCode);
     }
   });
-}, 5 * 60 * 1000); // Every 5 minutes
+}, 5 * 60 * 1000); 
 
 youtubeService.on('downloadProgress', (data) => {
   const { roomCode, queueItemId, progress, status } = data;
@@ -92,7 +86,6 @@ youtubeService.on('downloadComplete', (data) => {
   console.log('Download complete event received:', JSON.stringify(data, null, 2));
   
   const { roomCode, queueItemId, filename, publicUrl } = data;
-  // Use publicUrl from Supabase instead of local streaming URL
   const mp3Url = publicUrl || `/api/music/stream/${filename}`;
   
   console.log('Processing download complete:', { roomCode, queueItemId, filename, mp3Url, publicUrl });
@@ -140,20 +133,17 @@ youtubeService.on('downloadError', (data) => {
   });
 });
 
-// Listen for download manager events
 downloadManager.on('fileFoundPreDownloaded', (data) => {
   const { roomCode, queueItemId, videoId, mp3Url, status } = data;
   
   console.log('Pre-downloaded file found:', { roomCode, queueItemId, videoId, status });
   
-  // Emit to room that this item is already completed
   io.to(roomCode).emit('queueItemComplete', {
     queueItemId,
     mp3Url,
     status: 'completed'
   });
   
-  // Also emit general progress update
   io.to(roomCode).emit('queueItemProgress', {
     queueItemId,
     progress: 100,
@@ -165,7 +155,6 @@ server.listen(port, async () => {
   console.log(`Server listening at http://localhost:${port}`);
   console.log(`🗑️ Room cleanup service active - empty rooms will be deleted after ${roomCleanupService.EMPTY_ROOM_TIMEOUT / 1000 / 60} minutes of inactivity`);
   
-  // Initialize Supabase bucket
   try {
     console.log('Initializing Supabase storage...');
     const bucketInitialized = await supabaseService.initializeBucket();
@@ -180,10 +169,10 @@ server.listen(port, async () => {
   }
 });
 
-// Graceful shutdown handling
 process.on('SIGTERM', () => {
   console.log('SIGTERM received, shutting down gracefully...');
   roomCleanupService.clearAllTimers();
+  disconnectionService.clearAllTimers();
   server.close(() => {
     console.log('Server closed');
     process.exit(0);
@@ -193,6 +182,7 @@ process.on('SIGTERM', () => {
 process.on('SIGINT', () => {
   console.log('SIGINT received, shutting down gracefully...');
   roomCleanupService.clearAllTimers();
+  disconnectionService.clearAllTimers();
   server.close(() => {
     console.log('Server closed');
     process.exit(0);

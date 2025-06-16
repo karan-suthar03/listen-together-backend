@@ -29,11 +29,15 @@ function registerMusicSocket(io) {
         io.to(roomCode).emit('music-state', syncData);
         console.log(`Music control in room ${roomCode} by user ${userId}: ${action}`, data);
       }
-    });
-
-    socket.on('host-control', async ({ roomCode, action, data, userId }) => {
+    });    socket.on('host-control', async ({ roomCode, action, data, userId }) => {
       const room = roomService.getRoom(roomCode);
-      if (!room || room.hostId !== userId) {
+      if (!room) {
+        socket.emit('error', { message: 'Room not found' });
+        return;
+      }
+      
+      // Validate host permission server-side
+      if (room.hostId !== userId) {
         socket.emit('error', { message: 'Only host can control playback' });
         return;
       }
@@ -44,7 +48,7 @@ function registerMusicSocket(io) {
         io.to(roomCode).emit('music-state', syncData);
         console.log(`Host control in room ${roomCode}: ${action}`, data);
       }
-    });    
+    });
     socket.on('sync-request', async ({ roomCode }) => {
       const syncData = await roomService.getPlaybackSync(roomCode);
       if (syncData) {

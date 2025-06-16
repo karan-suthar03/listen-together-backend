@@ -44,6 +44,15 @@ router.put('/:roomCode/participants/:userId',
   })
 );
 
+// Get user info with server-validated host status
+router.get('/:roomCode/user-info/:userId',
+  queueValidationRules.roomCode,
+  validateRequest,
+  asyncHandler(async (req, res) => {
+    const result = await participantController.getUserInfo(req, res);
+    sendResponse(res, 200, result);
+  })
+);
 
 router.get('/:roomCode',
   queueValidationRules.roomCode,

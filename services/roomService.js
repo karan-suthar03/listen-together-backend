@@ -26,7 +26,8 @@ exports.createRoom = async (hostName = 'Host') => {
     id: userId, 
     name: hostName, 
     isHost: true,
-    joinedAt: Date.now()
+    joinedAt: Date.now(),
+    isConnected: true
   };  
   const room = { 
     code, 
@@ -57,7 +58,8 @@ exports.joinRoom = async (code, name = 'Guest') => {
     id: userId, 
     name, 
     isHost: false,
-    joinedAt: Date.now()
+    joinedAt: Date.now(),
+    isConnected: true
   };
   room.members.push(user);
   return { room, user };
@@ -94,13 +96,12 @@ exports.getPlaybackSync = async (roomCode) => {
 exports.getParticipants = (roomCode) => {
   const room = rooms.get(roomCode);
   if (!room) return null;
-  
-  return room.members.map(member => ({
+    return room.members.map(member => ({
     id: member.id,
     name: member.name,
     isHost: member.isHost,
     joinedAt: member.joinedAt,
-    isConnected: true 
+    isConnected: member.isConnected !== false
   }));
 };
 
@@ -109,14 +110,17 @@ exports.addParticipant = (roomCode, user) => {
   if (!room) return null;
   
   const existingUser = room.members.find(m => m.id === user.id);
-  if (existingUser) return room;
+  if (existingUser) {
+    existingUser.isConnected = true;
+    return room;
+  }
   
   const userWithTimestamp = {
     ...user,
-    joinedAt: Date.now()
+    joinedAt: Date.now(),
+    isConnected: true
   };
-  
-  room.members.push(userWithTimestamp);
+    room.members.push(userWithTimestamp);
   return room;
 };
 
@@ -125,11 +129,37 @@ exports.removeParticipant = (roomCode, userId) => {
   if (!room) return null;
   
   const userIndex = room.members.findIndex(m => m.id === userId);
-  if (userIndex === -1) return room;
+  if (userIndex === -1) return { room, removedUser: null }; // Return room even if user not found, or handle as error
   
   const removedUser = room.members[userIndex];
   room.members.splice(userIndex, 1);
-    return { room, removedUser };
+  return { room, removedUser };
+};
+
+exports.markUserDisconnected = (roomCode, userId) => {
+  const room = rooms.get(roomCode);
+  if (!room) return null;
+  
+  const user = room.members.find(m => m.id === userId);
+  if (!user) return null;
+  
+  user.isConnected = false;
+  user.disconnectedAt = Date.now();
+  
+  return room;
+};
+
+exports.markUserConnected = (roomCode, userId) => {
+  const room = rooms.get(roomCode);
+  if (!room) return null;
+  
+  const user = room.members.find(m => m.id === userId);
+  if (!user) return null;
+  
+  user.isConnected = true;
+  delete user.disconnectedAt;
+  
+  return room;
 };
 
 exports.addToQueue = (roomCode, songData, addedBy) => {
