@@ -20,6 +20,15 @@ router.get('/:roomCode',
     })
 );
 
+router.post('/:roomCode/add-search-result',
+    [...queueValidationRules.roomCode, ...queueValidationRules.addSearchToQueue],
+    validateRequest,
+    asyncHandler(async (req, res) => {
+        const result = await queueController.addSearchResultToQueue(req, res);
+        sendResponse(res, 201, result);
+    })
+);
+
 router.post('/:roomCode/add',
     [...queueValidationRules.roomCode, ...queueValidationRules.addToQueue],
     validateRequest,

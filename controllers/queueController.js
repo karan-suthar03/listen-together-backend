@@ -136,13 +136,12 @@ class QueueController {
     }
 
     async _processYouTubeUrl(roomCode, youtubeUrl, addedBy) {
-        // Check queue limit before processing
         this._checkQueueLimit(roomCode, 1);
 
         const videoInfo = await youtubeService.getVideoInfo(youtubeUrl);
         if (!videoInfo) {
             throw new Error('Failed to get video information');
-        }    // Check if this video is already in the queue
+        }
         const room = roomService.getRoom(roomCode);
         console.log(`🔍 YouTube duplicate check - Room found: ${!!room}, Queue length: ${room?.playback?.queue?.length || 0}`);
 
@@ -193,7 +192,7 @@ class QueueController {
                 result.room.playback && result.room.playback.queue ? result.room.playback.queue : [],
                 result.room.playback ? result.room.playback.currentTrackIndex : -1
             );
-        }    // Use download manager instead of direct download
+        }
         await downloadManager.addToDownloadQueue(roomCode, videoInfo.videoId, youtubeUrl, queueItemId);
 
         return {
@@ -244,7 +243,6 @@ class QueueController {
     }
 
     async _processSpotifyPlaylist(roomCode, spotifyResult, addedBy, originalUrl) {
-        // Calculate how many songs can actually be added to the queue
         const currentRoom = roomService.getRoom(roomCode);
         const currentQueueLength = currentRoom?.playback?.queue?.length || 0;
         const maxSongs = config.queue.maxSongs;
@@ -254,7 +252,6 @@ class QueueController {
             throw new Error(`Queue is full! Maximum ${maxSongs} songs allowed. Please wait for some songs to finish playing.`);
         }
 
-        // Limit the number of tracks to process based on available slots
         const tracksToProcess = Math.min(availableSlots, spotifyResult.tracks.length);
         const tracksToProcessArray = spotifyResult.tracks.slice(0, tracksToProcess);
 
@@ -266,21 +263,18 @@ class QueueController {
             console.log('Emitting working state change via socket for playlist:', playlistMessage);
             this.socketEmitter.emitWorkingStateChange(roomCode, true, playlistMessage);
         }
-        const stats = {successCount: 0, skippedDueToLimit: spotifyResult.tracks.length - tracksToProcess}; // Use object to maintain reference
+        const stats = {successCount: 0, skippedDueToLimit: spotifyResult.tracks.length - tracksToProcess};
 
-        // Process tracks asynchronously - each track gets added to queue as soon as its details are processed
         const processTrack = async (track, index) => {
             try {
                 console.log(`Processing track ${index + 1}/${tracksToProcess}: ${track.title || track.name}`);
                 const progressMessage = `Processing track ${index + 1}/${tracksToProcess}: ${track.title || track.name}`;
 
-                // Update progress for each track being processed
                 roomService.setRoomWorking(roomCode, true, progressMessage);
                 if (this.socketEmitter) {
                     this.socketEmitter.emitWorkingStateChange(roomCode, true, progressMessage);
                 }
 
-                // Process the Spotify track to get YouTube details
                 console.log(`🎵 Starting YouTube lookup for: ${track.title || track.name}`);
                 const processedTrack = await spotifyService.processSpotifyTrackFromPlaylist(
                     track,
@@ -290,7 +284,6 @@ class QueueController {
                 );
                 console.log(`🎵 YouTube lookup result:`, processedTrack ? 'Found' : 'Not found');
                 if (processedTrack && processedTrack.youtubeUrl && processedTrack.videoId) {
-                    // Check if this song is already in the queue
                     const roomForDuplicateCheck = roomService.getRoom(roomCode);
                     console.log(`🔍 Checking for duplicates - Room found: ${!!roomForDuplicateCheck}, Queue length: ${roomForDuplicateCheck?.playback?.queue?.length || 0}`);
                     if (roomForDuplicateCheck?.playback?.queue) {
@@ -338,7 +331,6 @@ class QueueController {
                     if (result) {
                         stats.successCount++;
                         console.log(`🎵 Successfully added to queue: ${queueItem.title} (${stats.successCount} total)`);
-                        // Add to download queue using download manager
                         await downloadManager.addToDownloadQueue(
                             roomCode,
                             processedTrack.videoId,
@@ -348,7 +340,6 @@ class QueueController {
 
                         console.log(`🎵 Added to download manager: ${processedTrack.videoId}`);
 
-                        // Emit queue update immediately after adding each track
                         if (this.socketEmitter) {
                             this.socketEmitter.emitQueueUpdate(
                                 roomCode,
@@ -366,14 +357,13 @@ class QueueController {
             } catch (error) {
                 console.error('🎵 Error processing track:', track.title || track.name, error);
             }
-        };      // Process tracks sequentially one by one for consistent user experience
-        const processingLimit = 1; // Process 1 track at a time for consistent speed
+        };
+        const processingLimit = 1;
         const processingPromises = [];
 
         for (let i = 0; i < Math.min(processingLimit, tracksToProcessArray.length); i++) {
             processingPromises.push(this._processTracksSequentially(tracksToProcessArray, i, processingLimit, processTrack));
         }
-        // Wait for all track processing to complete
         await Promise.allSettled(processingPromises);
         const finalRoom = roomService.getRoom(roomCode);
         const queueLength = finalRoom && finalRoom.playback && finalRoom.playback.queue ? finalRoom.playback.queue.length : 0;
@@ -404,10 +394,8 @@ class QueueController {
     }
 
     async _processSpotifyTrack(roomCode, spotifyResult, addedBy, originalUrl) {
-        // Check queue limit before processing
         this._checkQueueLimit(roomCode, 1);
 
-        // Check if this track is already in the queue
         const room = roomService.getRoom(roomCode);
         console.log(`🔍 Spotify track duplicate check - Room found: ${!!room}, Queue length: ${room?.playback?.queue?.length || 0}`);
 
@@ -460,7 +448,7 @@ class QueueController {
                 result.room.playback && result.room.playback.queue ? result.room.playback.queue : [],
                 result.room.playback ? result.room.playback.currentTrackIndex : -1
             );
-        }    // Use download manager instead of direct download
+        }
         await downloadManager.addToDownloadQueue(roomCode, spotifyResult.videoId, spotifyResult.youtubeUrl, queueItemId);
 
         return {
@@ -504,13 +492,100 @@ class QueueController {
     async refreshDownloadStatus(req, res) {
         const {roomCode} = req.params;
 
-        // Trigger a check for existing files
         await downloadManager.checkAllExistingFiles(roomCode);
 
-        // Process downloads to update the queue
         await downloadManager.processDownloads(roomCode);
 
         return createSuccessResponse({}, 'Download status refreshed successfully');
+    }
+
+    async addSearchResultToQueue(req, res) {
+        const {roomCode} = req.params;
+        const {searchResult, addedBy} = req.body;
+
+        try {
+            this._checkQueueLimit(roomCode, 1);
+
+            const room = roomService.getRoom(roomCode);
+            if (!room) {
+                throw new Error('Room not found');
+            }
+
+            console.log(`🔍 Direct add to queue - Room found: ${!!room}, Queue length: ${room?.playback?.queue?.length || 0}`);
+
+            if (room?.playback?.queue) {
+                const existingTrack = room.playback.queue.find(item => {
+                    console.log(`🔍 Comparing search result: "${item.videoId}" === "${searchResult.id}"`);
+                    return item.videoId === searchResult.id;
+                });
+
+                if (existingTrack) {
+                    console.log(`🎵 Skipping duplicate from search result: ${searchResult.title} (Video ID: ${searchResult.id})`);
+                    throw new Error('This song is already in the queue');
+                }
+            }
+
+            console.log(`✅ Adding search result to queue: ${searchResult.title} (Video ID: ${searchResult.id})`);
+
+            const queueItemId = crypto.randomBytes(16).toString('hex');
+            const queueItem = {
+                id: queueItemId,
+                title: searchResult.title,
+                artist: searchResult.artist || 'Unknown',
+                duration: this._parseDurationToSeconds(searchResult.duration) || 0,
+                youtubeUrl: searchResult.youtubeUrl,
+                videoId: searchResult.id,
+                coverUrl: searchResult.thumbnail,
+                addedBy: addedBy,
+                addedAt: Date.now(),
+                downloadStatus: 'pending',
+                downloadProgress: 0,
+                mp3Url: null,
+                source: 'youtube'
+            };
+
+            const result = roomService.addToQueue(roomCode, queueItem, addedBy);
+            if (!result) {
+                throw new Error('Failed to add song to queue');
+            }
+
+            if (this.socketEmitter) {
+                this.socketEmitter.emitQueueUpdate(
+                    roomCode,
+                    result.room.playback && result.room.playback.queue ? result.room.playback.queue : [],
+                    result.room.playback ? result.room.playback.currentTrackIndex : -1
+                );
+            }
+
+            await downloadManager.addToDownloadQueue(roomCode, searchResult.id, searchResult.youtubeUrl, queueItemId);
+
+            return createSuccessResponse({
+                type: 'search_result',
+                queueItem: queueItem,
+                room: result.room,
+                queueLength: result.room.playback ? result.room.playback.queue.length : 0
+            }, 'Search result added to queue successfully');
+
+        } catch (error) {
+            console.error('Add search result to queue error:', error);
+            throw error;
+        }
+    }
+
+    _parseDurationToSeconds(durationStr) {
+        if (!durationStr || typeof durationStr !== 'string') return 0;
+
+        const parts = durationStr.split(':').map(p => parseInt(p, 10));
+
+        if (parts.length === 1) {
+            return parts[0];
+        } else if (parts.length === 2) {
+            return parts[0] * 60 + parts[1];
+        } else if (parts.length === 3) {
+            return parts[0] * 3600 + parts[1] * 60 + parts[2];
+        }
+
+        return 0;
     }
 }
 

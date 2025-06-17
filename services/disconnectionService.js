@@ -22,7 +22,8 @@ function handleUserDisconnect(roomCode, userId, socketId, io) {
 
     if (disconnectedUsers.has(userId)) {
         clearTimeout(disconnectedUsers.get(userId).timeoutId);
-    }    const timeoutId = setTimeout(() => {
+    }
+    const timeoutId = setTimeout(() => {
         console.log(`⏰ Grace period expired for user ${userId}, removing from room ${roomCode}`);
 
         const result = roomService.removeParticipant(roomCode, userId);
@@ -36,7 +37,6 @@ function handleUserDisconnect(roomCode, userId, socketId, io) {
                 reason: 'timeout'
             });
 
-            // Notify if a new host was assigned
             if (result.newHost) {
                 io.to(roomCode).emit('host-changed', {
                     newHost: result.newHost,
@@ -104,7 +104,6 @@ function forceRemoveUser(roomCode, userId, io) {
             reason: 'explicit'
         });
 
-        // Notify if a new host was assigned
         if (result.newHost) {
             io.to(roomCode).emit('host-changed', {
                 newHost: result.newHost,

@@ -44,10 +44,22 @@ const queueValidationRules = {
     ],
     removeFromQueue: [
         param('index').isInt({min: 0}).withMessage('Index must be a non-negative integer')
-    ],
-    moveInQueue: [
+    ], moveInQueue: [
         body('fromIndex').isInt({min: 0}).withMessage('From index must be a non-negative integer'),
         body('toIndex').isInt({min: 0}).withMessage('To index must be a non-negative integer')
+    ],
+    addSearchToQueue: [
+        body('searchResult').notEmpty().withMessage('Search result data is required'),
+        body('searchResult.id').notEmpty().withMessage('Search result ID is required'),
+        body('searchResult.title').notEmpty().withMessage('Search result title is required'),
+        body('searchResult.youtubeUrl').notEmpty().withMessage('YouTube URL is required'),
+        body('searchResult.youtubeUrl').custom((value) => {
+            if (!isYouTubeUrl(value)) {
+                throw new Error('Invalid YouTube URL');
+            }
+            return true;
+        }),
+        body('addedBy').notEmpty().withMessage('Added by field is required')
     ]
 };
 

@@ -53,7 +53,6 @@ function createApp(io) {
             version: require('./package.json').version
         });
     });
-
     app.get('/', (req, res) => {
         res.json({
             message: 'ListenTogether Server API',
@@ -62,7 +61,8 @@ function createApp(io) {
                 rooms: '/api/rooms',
                 queue: '/api/queue',
                 music: '/api/music',
-                participants: '/api/participants'
+                participants: '/api/participants',
+                search: '/api/search'
             }
         });
     });
@@ -76,16 +76,17 @@ function createApp(io) {
 
     // Serve Angular static files
     app.use(express.static(path.join(__dirname, 'public')));
-
     const roomRoutes = require('./routes/roomRoutes');
     const musicRoutes = require('./routes/musicRoutes');
     const participantRoutes = require('./routes/participantRoutes');
     const queueRoutes = require('./routes/queueRoutes');
+    const searchRoutes = require('./routes/searchRoutes');
 
     app.use('/api/rooms', roomRoutes);
     app.use('/api/music', musicRoutes);
     app.use('/api/participants', participantRoutes);
     app.use('/api/queue', queueRoutes);
+    app.use('/api/search', searchRoutes);
 
     // Serve Angular app for all non-API routes
     app.get('*', (req, res) => {

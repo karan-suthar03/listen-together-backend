@@ -202,7 +202,9 @@ class MusicService {
             queue: playbackState.queue,
             currentTrackIndex: playbackState.currentTrackIndex
         };
-    }    async getSyncData(playbackState) {
+    }
+
+    async getSyncData(playbackState) {
         let currentTrack = null;
         if (playbackState.currentTrackIndex >= 0 && playbackState.queue.length > playbackState.currentTrackIndex) {
             currentTrack = playbackState.queue[playbackState.currentTrackIndex];
@@ -212,8 +214,8 @@ class MusicService {
         const syncData = {
             isPlaying: playbackState.isPlaying,
             currentTime: this.getCurrentPosition(playbackState),
-            lastUpdated: now, // Include server timestamp for client sync
-            serverTimestamp: now, // Explicit server timestamp
+            lastUpdated: now,
+            serverTimestamp: now,
             queue: playbackState.queue,
             currentTrackIndex: playbackState.currentTrackIndex,
             currentTrack: currentTrack,
