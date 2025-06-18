@@ -35,6 +35,22 @@ const urlValidators = {
         } catch {
             return false;
         }
+    },    extractYouTubeVideoId: (url) => {
+        const patterns = [
+            /(?:youtube\.com\/watch\?v=)([^&\n?#]+)/,           // youtube.com/watch?v=VIDEO_ID
+            /(?:youtu\.be\/)([^&\n?#]+)/,                      // youtu.be/VIDEO_ID
+            /(?:youtube\.com\/embed\/)([^&\n?#]+)/,            // youtube.com/embed/VIDEO_ID
+            /(?:youtube\.com\/v\/)([^&\n?#]+)/,                // youtube.com/v/VIDEO_ID
+            /youtube\.com\/watch\?.*v=([^&\n?#]+)/             // youtube.com/watch with other params
+        ];
+        
+        for (const pattern of patterns) {
+            const match = url.match(pattern);
+            if (match && match[1]) {
+                return match[1];
+            }
+        }
+        return null;
     }
 };
 

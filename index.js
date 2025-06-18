@@ -67,7 +67,7 @@ setInterval(() => {
 
 youtubeService.on('downloadProgress', (data) => {
     const {roomCode, queueItemId, progress, status} = data;
-
+    
     roomService.updateQueueItemStatus(roomCode, queueItemId, status, progress);
 
     io.to(roomCode).emit('queueItemProgress', {
@@ -81,6 +81,8 @@ youtubeService.on('downloadComplete', (data) => {
     const {roomCode, queueItemId, filename, publicUrl} = data;
     const mp3Url = publicUrl || `/api/music/stream/${filename}`;
 
+    console.log(`✅ Download complete event: ${queueItemId} - ${mp3Url}`);
+
     const result = roomService.updateQueueItemStatus(roomCode, queueItemId, 'completed', 100, mp3Url);
 
     const room = roomService.getRoom(roomCode);
@@ -91,6 +93,13 @@ youtubeService.on('downloadComplete', (data) => {
             roomService.updatePlayback(roomCode, 'playTrack', {trackIndex: firstCompletedIndex});
         }
     }
+
+    console.log(`📡 Emitting queueItemComplete to room ${roomCode}:`, {
+        queueItemId,
+        mp3Url,
+        publicUrl,
+        status: 'completed'
+    });
 
     io.to(roomCode).emit('queueItemComplete', {
         queueItemId,
