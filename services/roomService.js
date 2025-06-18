@@ -108,19 +108,19 @@ exports.addParticipant = (roomCode, user) => {
         joinedAt: Date.now(),
         isConnected: true
     };
-    
+
     // If this is the first user joining an empty room, make them the host
     if (room.members.length === 0) {
         userWithTimestamp.isHost = true;
         room.hostId = userWithTimestamp.id;
         console.log(`👑 First user ${userWithTimestamp.name} joined empty room ${roomCode}, made host`);
     }
-    
+
     room.members.push(userWithTimestamp);
-    
+
     // Ensure room always has a valid host
     ensureRoomHasHost(room);
-    
+
     return room;
 };
 
@@ -133,17 +133,17 @@ exports.removeParticipant = (roomCode, userId) => {
 
     const removedUser = room.members[userIndex];
     const wasHost = removedUser.isHost;
-    
+
     room.members.splice(userIndex, 1);
-    
+
     // If the removed user was the host, assign a new host
     if (wasHost && room.members.length > 0) {
         const newHost = assignNewHost(room);
         console.log(`👑 Host ${removedUser.name} left room ${roomCode}, new host: ${newHost?.name || 'none'}`);
-        
+
         return {room, removedUser, newHost};
     }
-    
+
     return {room, removedUser};
 };
 
@@ -308,38 +308,38 @@ exports.getRoomStats = () => {
 // Host management utilities
 function assignNewHost(room) {
     if (!room || room.members.length === 0) return null;
-    
+
     // Find the next connected user (in order of joining) to become host
     const nextHost = room.members.find(member => member.isConnected !== false);
-    
+
     if (nextHost) {
         // Remove host status from all members first
         room.members.forEach(member => {
             member.isHost = false;
         });
-        
+
         // Assign new host
         nextHost.isHost = true;
         room.hostId = nextHost.id;
-        
+
         console.log(`🔄 New host assigned: ${nextHost.name} (${nextHost.id}) in room ${room.code}`);
         return nextHost;
     }
-    
+
     return null;
 }
 
 function ensureRoomHasHost(room) {
     if (!room || room.members.length === 0) return null;
-    
+
     // Check if current host exists and is connected
     const currentHost = room.members.find(member => member.id === room.hostId && member.isConnected !== false);
-    
+
     if (!currentHost) {
         console.log(`⚠️ Room ${room.code} has no valid host, assigning new one...`);
         return assignNewHost(room);
     }
-    
+
     return currentHost;
 }
 
@@ -350,34 +350,34 @@ exports.ensureRoomHasHost = ensureRoomHasHost;
 exports.ensureRoomHasHost = (roomCode) => {
     const room = rooms.get(roomCode);
     if (!room) return null;
-    
+
     return ensureRoomHasHost(room);
 };
 
 exports.getHost = (roomCode) => {
     const room = rooms.get(roomCode);
     if (!room) return null;
-    
+
     return room.members.find(member => member.id === room.hostId);
 };
 
 exports.transferHost = (roomCode, newHostId) => {
     const room = rooms.get(roomCode);
     if (!room) return null;
-    
+
     const newHost = room.members.find(member => member.id === newHostId);
     if (!newHost) return null;
-    
+
     // Remove host status from all members
     room.members.forEach(member => {
         member.isHost = false;
     });
-    
+
     // Assign new host
     newHost.isHost = true;
     room.hostId = newHostId;
-    
+
     console.log(`👑 Host transferred to ${newHost.name} (${newHostId}) in room ${roomCode}`);
-    
+
     return {room, newHost};
 };

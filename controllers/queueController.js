@@ -512,6 +512,79 @@ class QueueController {
 
         return createSuccessResponse({}, 'Download status refreshed successfully');
     }
+
+    async addFromSearch(req, res) {
+        const {roomCode} = req.params;
+        const {searchResult, addedBy} = req.body;
+
+        try {
+            // Check queue limit before processing
+            this._checkQueueLimit(roomCode, 1);
+
+            // Check if this video is already in the queue
+            const room = roomService.getRoom(roomCode);
+            console.log(`🔍 Search result duplicate check - Room found: ${!!room}, Queue length: ${room?.playback?.queue?.length || 0}`);
+
+            if (room?.playback?.queue) {
+                const existingTrack = room.playback.queue.find(item => {
+                    console.log(`🔍 Comparing Search: "${item.videoId}" === "${searchResult.videoId}"`);
+                    return item.videoId === searchResult.videoId;
+                });
+
+                if (existingTrack) {
+                    console.log(`🎵 Skipping duplicate search result: ${searchResult.title} (Video ID: ${searchResult.videoId})`);
+                    throw new Error('This song is already in the queue');
+                }
+            }
+
+            console.log(`✅ No duplicate found for search result: ${searchResult.title} (Video ID: ${searchResult.videoId})`);
+
+            const queueItemId = crypto.randomBytes(16).toString('hex');
+            const queueItem = {
+                id: queueItemId,
+                title: searchResult.title,
+                artist: searchResult.author.name || 'Unknown',
+                duration: searchResult.duration.seconds || 0,
+                youtubeUrl: searchResult.url,
+                videoId: searchResult.videoId,
+                coverUrl: searchResult.thumbnail,
+                addedBy: addedBy,
+                addedAt: Date.now(),
+                downloadStatus: 'pending',
+                downloadProgress: 0,
+                mp3Url: null,
+                source: 'youtube'
+            };
+
+            const result = roomService.addToQueue(roomCode, queueItem, addedBy);
+            if (!result) {
+                throw new Error('Failed to add song to queue');
+            }
+
+            // Emit queue update to all participants
+            if (this.socketEmitter) {
+                this.socketEmitter.emitQueueUpdate(
+                    roomCode,
+                    result.room.playback && result.room.playback.queue ? result.room.playback.queue : [],
+                    result.room.playback ? result.room.playback.currentTrackIndex : -1
+                );
+            }
+
+            // Start download process
+            downloadManager.addToDownloadQueue(roomCode, searchResult.videoId, searchResult.url, queueItemId);
+
+            return createSuccessResponse({
+                type: 'video',
+                added: queueItem,
+                queueLength: result.room.playback.queue.length,
+                position: result.room.playback.queue.length
+            }, 'Added to queue successfully from search');
+
+        } catch (error) {
+            console.error('Add from search error:', error);
+            throw error;
+        }
+    }
 }
 
 module.exports = new QueueController();

@@ -29,6 +29,15 @@ router.post('/:roomCode/add',
     })
 );
 
+router.post('/:roomCode/add-from-search',
+    [...queueValidationRules.roomCode, ...queueValidationRules.addFromSearch],
+    validateRequest,
+    asyncHandler(async (req, res) => {
+        const result = await queueController.addFromSearch(req, res);
+        sendResponse(res, 201, result);
+    })
+);
+
 router.delete('/:roomCode/:index',
     [...queueValidationRules.roomCode, ...queueValidationRules.removeFromQueue],
     validateRequest,

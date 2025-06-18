@@ -202,7 +202,9 @@ class MusicService {
             queue: playbackState.queue,
             currentTrackIndex: playbackState.currentTrackIndex
         };
-    }    async getSyncData(playbackState) {
+    }
+
+    async getSyncData(playbackState) {
         let currentTrack = null;
         if (playbackState.currentTrackIndex >= 0 && playbackState.queue.length > playbackState.currentTrackIndex) {
             currentTrack = playbackState.queue[playbackState.currentTrackIndex];

@@ -39,6 +39,15 @@ const queueValidationRules = {
             return true;
         })
     ],
+    addFromSearch: [
+        body('searchResult').notEmpty().withMessage('Search result data is required'),
+        body('searchResult.videoId').notEmpty().withMessage('Video ID is required'),
+        body('searchResult.title').notEmpty().withMessage('Title is required'),
+        body('searchResult.author.name').notEmpty().withMessage('Author name is required'),
+        body('searchResult.duration.seconds').isInt({min: 1}).withMessage('Duration must be a positive integer'),
+        body('searchResult.url').isURL().withMessage('Valid URL is required'),
+        body('addedBy').notEmpty().withMessage('Added by field is required')
+    ],
     roomCode: [
         param('roomCode').isLength({min: 6, max: 6}).withMessage('Room code must be 6 characters')
     ],
