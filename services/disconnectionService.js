@@ -37,7 +37,6 @@ function handleUserDisconnect(roomCode, userId, socketId, io) {
                 reason: 'timeout'
             });
 
-            // Notify if a new host was assigned
             if (result.newHost) {
                 io.to(roomCode).emit('host-changed', {
                     newHost: result.newHost,
@@ -105,7 +104,6 @@ function forceRemoveUser(roomCode, userId, io) {
             reason: 'explicit'
         });
 
-        // Notify if a new host was assigned
         if (result.newHost) {
             io.to(roomCode).emit('host-changed', {
                 newHost: result.newHost,

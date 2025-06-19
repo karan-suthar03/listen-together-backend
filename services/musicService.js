@@ -214,8 +214,8 @@ class MusicService {
         const syncData = {
             isPlaying: playbackState.isPlaying,
             currentTime: this.getCurrentPosition(playbackState),
-            lastUpdated: now, // Include server timestamp for client sync
-            serverTimestamp: now, // Explicit server timestamp
+            lastUpdated: now,
+            serverTimestamp: now,
             queue: playbackState.queue,
             currentTrackIndex: playbackState.currentTrackIndex,
             currentTrack: currentTrack,

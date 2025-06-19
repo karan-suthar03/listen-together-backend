@@ -53,7 +53,6 @@ function createApp(io) {
             version: require('./package.json').version
         });
     });
-
     app.get('/', (req, res) => {
         res.json({
             message: 'ListenTogether Server API',

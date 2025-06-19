@@ -55,8 +55,14 @@ function registerRoomSocket(io) {
             }
         });
         socket.on('leave-room', ({roomCode}) => {
+            if (!roomCode) {
+                console.error('❌ leave-room: roomCode is required');
+                return;
+            }
+
             const info = socketUserRoom.get(socket.id);
-            if (info && info.roomCode === roomCode) {
+            if (info && info.user && info.user.id && info.roomCode === roomCode) {
+                console.log(`🚪 User ${info.user.name || info.user.id} leaving room ${roomCode}`);
                 socket.leave(roomCode);
 
                 console.log(`🚪 User ${info.user.id} manually leaving room ${roomCode}`);
@@ -66,15 +72,21 @@ function registerRoomSocket(io) {
                 disconnectionService.handleUserDisconnect(roomCode, info.user.id, socket.id, io);
 
                 socketUserRoom.delete(socket.id);
+            } else {
+                console.log(`🚪 Socket ${socket.id} tried to leave room ${roomCode} but not in that room`);
             }
         });
         socket.on('disconnect', () => {
             const info = socketUserRoom.get(socket.id);
-            if (info) {
+            if (info && info.user && info.user.id && info.roomCode) {
                 const {roomCode, user} = info;
+                console.log(`🚪 User ${user.name || user.id} disconnecting from room ${roomCode}`);
 
                 disconnectionService.handleUserDisconnect(roomCode, user.id, socket.id, io);
 
+                socketUserRoom.delete(socket.id);
+            } else {
+                console.log(`🚪 Socket ${socket.id} disconnected without room info`);
                 socketUserRoom.delete(socket.id);
             }
         });
@@ -86,8 +98,12 @@ function registerRoomSocket(io) {
                 socket.emit('error', {message: 'Room not found'});
             }
         });
-
         socket.on('transfer-host', ({roomCode, newHostId}) => {
+            if (!roomCode || !newHostId) {
+                socket.emit('error', {message: 'Room code and new host ID are required'});
+                return;
+            }
+
             const room = roomService.getRoom(roomCode);
             if (!room) {
                 socket.emit('error', {message: 'Room not found'});
@@ -96,7 +112,7 @@ function registerRoomSocket(io) {
 
             // Get current user info
             const info = socketUserRoom.get(socket.id);
-            if (!info || info.roomCode !== roomCode) {
+            if (!info || !info.user || !info.user.id || info.roomCode !== roomCode) {
                 socket.emit('error', {message: 'You are not in this room'});
                 return;
             }
