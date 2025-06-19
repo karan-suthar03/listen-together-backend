@@ -2,9 +2,11 @@ const {createClient} = require('@supabase/supabase-js');
 const config = require('../config/config');
 const fs = require('fs');
 const path = require('path');
+const {EventEmitter} = require('events');
 
-class SupabaseService {
+class SupabaseService extends EventEmitter {
     constructor() {
+        super();
         if (!config.supabase.url) {
             throw new Error('Supabase URL is required in environment variables');
         }
@@ -62,23 +64,48 @@ class SupabaseService {
             console.log('   Go to Storage → Create new bucket → Name: music-files → Public: Yes');
             return false;
         }
-    }
-
-    /**
+    }    /**
      * Upload a file to Supabase storage
      * @param {string} filePath - Local file path
      * @param {string} fileName - File name to use in storage
      * @param {Object} metadata - Optional metadata
+     * @param {Object} progressInfo - Progress tracking info (videoId, roomCode, queueItemId)
      * @returns {Promise<Object>} Upload result with public URL
      */
-    async uploadFile(filePath, fileName, metadata = {}) {
+    async uploadFile(filePath, fileName, metadata = {}, progressInfo = null) {
         try {
             if (!fs.existsSync(filePath)) {
                 throw new Error(`File not found: ${filePath}`);
+            }            // Emit upload start progress
+            if (progressInfo) {
+                console.log(`📤 Starting upload: ${progressInfo.videoId} - ${fileName}`);
+                this.emit('uploadProgress', {
+                    ...progressInfo,
+                    progress: 0,
+                    status: 'uploading'
+                });
             }
 
             // Read the file
             const fileBuffer = fs.readFileSync(filePath);
+            const fileSize = fileBuffer.length;
+
+            // Simulate upload progress since Supabase doesn't provide upload progress callback
+            let uploadProgress = 0;
+            const progressInterval = setInterval(() => {
+                if (uploadProgress < 90) {
+                    uploadProgress += Math.random() * 20; // Random increment up to 90%
+                    if (uploadProgress > 90) uploadProgress = 90;
+                      if (progressInfo) {
+                        console.log(`📤 Upload progress: ${progressInfo.videoId} - ${Math.round(uploadProgress)}%`);
+                        this.emit('uploadProgress', {
+                            ...progressInfo,
+                            progress: Math.round(uploadProgress),
+                            status: 'uploading'
+                        });
+                    }
+                }
+            }, 500); // Update every 500ms
 
             // Upload to Supabase
             const {data, error} = await this.supabase.storage
@@ -89,8 +116,25 @@ class SupabaseService {
                     upsert: true // Replace if file already exists
                 });
 
+            clearInterval(progressInterval);
+
             if (error) {
+                if (progressInfo) {
+                    this.emit('uploadProgress', {
+                        ...progressInfo,
+                        progress: 0,
+                        status: 'error'
+                    });
+                }
                 throw error;
+            }            // Emit completion progress
+            if (progressInfo) {
+                console.log(`✅ Upload completed: ${progressInfo.videoId} - 100%`);
+                this.emit('uploadProgress', {
+                    ...progressInfo,
+                    progress: 100,
+                    status: 'completed'
+                });
             }
 
             // Get public URL

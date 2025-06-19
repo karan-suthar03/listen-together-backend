@@ -13,7 +13,22 @@ class YouTubeService extends EventEmitter {
 
         if (!fs.existsSync(this.downloadsDir)) {
             fs.mkdirSync(this.downloadsDir, {recursive: true});
-        }
+        }        // Listen to upload progress events from SupabaseService
+        supabaseService.on('uploadProgress', (data) => {
+            const {videoId, roomCode, queueItemId, progress, status} = data;
+            // Map upload progress (0-100%) to second 50% of total progress (50-100%)
+            const totalProgress = 50 + Math.round(progress * 0.5);
+            
+            console.log(`🔄 Upload progress: ${videoId} - ${progress}% upload -> ${totalProgress}% total`);
+            
+            this.emit('downloadProgress', {
+                videoId,
+                roomCode,
+                queueItemId,
+                progress: totalProgress,
+                status: status === 'completed' ? 'completed' : 'uploading'
+            });
+        });
     }
 
     // Helper function to extract video ID from YouTube URL
@@ -136,11 +151,11 @@ class YouTubeService extends EventEmitter {
                     throw ytdlError;
                 }
 
-                const writeStream = fs.createWriteStream(filePath);
-
-                stream.on('response', (response) => {
+                const writeStream = fs.createWriteStream(filePath);                stream.on('response', (response) => {
                     totalSize = parseInt(response.headers['content-length']) || 0;
                     lastProgressEmit = Date.now();
+
+                    console.log(`🎬 Starting download: ${videoId} - ${totalSize} bytes`);
 
                     this.emit('downloadProgress', {
                         videoId,
@@ -151,20 +166,21 @@ class YouTubeService extends EventEmitter {
                         downloadedSize: 0,
                         status: 'downloading'
                     });
-                });
-
-                stream.on('data', (chunk) => {
+                });stream.on('data', (chunk) => {
                     downloadedSize += chunk.length;
-                    const progress = totalSize > 0 ? Math.round((downloadedSize / totalSize) * 100) : 0;
+                    const downloadProgress = totalSize > 0 ? Math.round((downloadedSize / totalSize) * 100) : 0;
+                    // Map download progress to first 50% of total progress
+                    const totalProgress = Math.round(downloadProgress * 0.5);
                     const now = Date.now();
                     // Emit progress every 2 seconds
                     if (now - lastProgressEmit >= 2000) {
                         lastProgressEmit = now;
+                        console.log(`⬇️ Download progress: ${videoId} - ${downloadProgress}% download -> ${totalProgress}% total`);
                         this.emit('downloadProgress', {
                             videoId,
                             roomCode,
                             queueItemId,
-                            progress: Math.min(progress, 95), // Cap at 95% until upload is complete
+                            progress: Math.min(totalProgress, 50), // Cap at 50% for download phase
                             totalSize,
                             downloadedSize,
                             status: 'downloading'
@@ -190,44 +206,35 @@ class YouTubeService extends EventEmitter {
 
                     reject(error);
                 });
-                stream.pipe(writeStream);
-
-                writeStream.on('finish', async () => {
+                stream.pipe(writeStream);                writeStream.on('finish', async () => {
                     const elapsed = (Date.now() - startTime) / 1000;
                     try {
-                        // Emit progress update for upload phase
+                        // Emit progress update for end of download phase (50%)
                         this.emit('downloadProgress', {
                             videoId,
                             roomCode,
                             queueItemId,
-                            progress: 95,
+                            progress: 50,
                             totalSize,
                             downloadedSize: totalSize,
                             status: 'uploading'
                         });
 
-                        // Upload to Supabase
+                        // Upload to Supabase with upload progress tracking
                         const uploadResult = await supabaseService.uploadFile(filePath, filename, {
                             videoId,
                             roomCode,
                             queueItemId,
                             uploadedAt: new Date().toISOString()
-                        });
-                        if (uploadResult.success) {
+                        }, {
+                            videoId,
+                            roomCode,
+                            queueItemId
+                        });                        if (uploadResult.success) {
                             // Clean up local file
                             await supabaseService.cleanupLocalFile(filePath);
 
-                            // Emit final completion
-                            this.emit('downloadProgress', {
-                                videoId,
-                                roomCode,
-                                queueItemId,
-                                progress: 100,
-                                totalSize,
-                                downloadedSize: totalSize,
-                                status: 'completed'
-                            });
-
+                            // Final completion will be emitted by SupabaseService upload progress
                             this.downloadQueue.delete(videoId);
                             this.emit('downloadComplete', {
                                 videoId,

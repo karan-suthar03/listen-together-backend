@@ -499,42 +499,40 @@ class QueueController {
         return createSuccessResponse({}, 'Download status refreshed successfully');
     }
 
-    async addSearchResultToQueue(req, res) {
+    async addFromSearch(req, res) {
         const {roomCode} = req.params;
         const {searchResult, addedBy} = req.body;
 
         try {
+            // Check queue limit before processing
             this._checkQueueLimit(roomCode, 1);
 
+            // Check if this video is already in the queue
             const room = roomService.getRoom(roomCode);
-            if (!room) {
-                throw new Error('Room not found');
-            }
-
-            console.log(`🔍 Direct add to queue - Room found: ${!!room}, Queue length: ${room?.playback?.queue?.length || 0}`);
+            console.log(`🔍 Search result duplicate check - Room found: ${!!room}, Queue length: ${room?.playback?.queue?.length || 0}`);
 
             if (room?.playback?.queue) {
                 const existingTrack = room.playback.queue.find(item => {
-                    console.log(`🔍 Comparing search result: "${item.videoId}" === "${searchResult.id}"`);
-                    return item.videoId === searchResult.id;
+                    console.log(`🔍 Comparing Search: "${item.videoId}" === "${searchResult.videoId}"`);
+                    return item.videoId === searchResult.videoId;
                 });
 
                 if (existingTrack) {
-                    console.log(`🎵 Skipping duplicate from search result: ${searchResult.title} (Video ID: ${searchResult.id})`);
+                    console.log(`🎵 Skipping duplicate search result: ${searchResult.title} (Video ID: ${searchResult.videoId})`);
                     throw new Error('This song is already in the queue');
                 }
             }
 
-            console.log(`✅ Adding search result to queue: ${searchResult.title} (Video ID: ${searchResult.id})`);
+            console.log(`✅ No duplicate found for search result: ${searchResult.title} (Video ID: ${searchResult.videoId})`);
 
             const queueItemId = crypto.randomBytes(16).toString('hex');
             const queueItem = {
                 id: queueItemId,
                 title: searchResult.title,
-                artist: searchResult.artist || 'Unknown',
-                duration: this._parseDurationToSeconds(searchResult.duration) || 0,
-                youtubeUrl: searchResult.youtubeUrl,
-                videoId: searchResult.id,
+                artist: searchResult.author.name || 'Unknown',
+                duration: searchResult.duration.seconds || 0,
+                youtubeUrl: searchResult.url,
+                videoId: searchResult.videoId,
                 coverUrl: searchResult.thumbnail,
                 addedBy: addedBy,
                 addedAt: Date.now(),
@@ -557,35 +555,20 @@ class QueueController {
                 );
             }
 
-            await downloadManager.addToDownloadQueue(roomCode, searchResult.id, searchResult.youtubeUrl, queueItemId);
+            // Start download process
+            downloadManager.addToDownloadQueue(roomCode, searchResult.videoId, searchResult.url, queueItemId);
 
             return createSuccessResponse({
-                type: 'search_result',
-                queueItem: queueItem,
-                room: result.room,
-                queueLength: result.room.playback ? result.room.playback.queue.length : 0
-            }, 'Search result added to queue successfully');
+                type: 'video',
+                added: queueItem,
+                queueLength: result.room.playback.queue.length,
+                position: result.room.playback.queue.length
+            }, 'Added to queue successfully from search');
 
         } catch (error) {
-            console.error('Add search result to queue error:', error);
+            console.error('Add from search error:', error);
             throw error;
         }
-    }
-
-    _parseDurationToSeconds(durationStr) {
-        if (!durationStr || typeof durationStr !== 'string') return 0;
-
-        const parts = durationStr.split(':').map(p => parseInt(p, 10));
-
-        if (parts.length === 1) {
-            return parts[0];
-        } else if (parts.length === 2) {
-            return parts[0] * 60 + parts[1];
-        } else if (parts.length === 3) {
-            return parts[0] * 3600 + parts[1] * 60 + parts[2];
-        }
-
-        return 0;
     }
 }
 

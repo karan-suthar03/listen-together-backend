@@ -56,8 +56,7 @@ function createApp(io) {
     app.get('/', (req, res) => {
         res.json({
             message: 'ListenTogether Server API',
-            version: require('./package.json').version,
-            endpoints: {
+            version: require('./package.json').version, endpoints: {
                 rooms: '/api/rooms',
                 queue: '/api/queue',
                 music: '/api/music',

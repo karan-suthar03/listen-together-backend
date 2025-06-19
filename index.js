@@ -67,7 +67,7 @@ setInterval(() => {
 
 youtubeService.on('downloadProgress', (data) => {
     const {roomCode, queueItemId, progress, status} = data;
-
+    
     roomService.updateQueueItemStatus(roomCode, queueItemId, status, progress);
 
     io.to(roomCode).emit('queueItemProgress', {
